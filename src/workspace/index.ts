@@ -21,7 +21,7 @@ export default async function workspace(context: vscode.ExtensionContext) {
         return;
     }
 
-    vscode.window.showInformationMessage(`현재 ${userData.name}로 구름EDU에 로그인되어있습니다.`);
+    vscode.window.showInformationMessage(`현재 ${userData.name}으(로) 구름EDU에 로그인되어있습니다.`);
 
-    
+
 }
