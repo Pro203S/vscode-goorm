@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import getInitialState, { LectureInitialState } from '../initialState';
-import * as fs from 'fs';
+import sanitizeFileName from '../lib/sanitizeFileName';
+import { CurriculumMapping, mappingToJson } from '../lib/mapping';
 
 export async function getUniqueFolderName(
     parentUri: vscode.Uri,
@@ -67,6 +68,56 @@ export async function callback(context: vscode.ExtensionContext) {
     const uri = vscode.Uri.joinPath(targetPath[0], unique);
     await vscode.workspace.fs.createDirectory(uri);
     await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, ".goorm"));
+
+    await vscode.window.withProgress(
+        {
+            "title": "작업 환경을 세팅하고 있습니다...",
+            "location": vscode.ProgressLocation.Notification,
+            "cancellable": false
+        },
+        async () => {
+            const data = lectureState.lectureData;
+
+            const fs = vscode.workspace.fs;
+            const join = vscode.Uri.joinPath;
+            const goormPath = vscode.Uri.joinPath(uri, ".goorm");
+
+            const mapping: CurriculumMapping[] = [];
+
+            for await (const curriculum of data.curriculumData) {
+                const curriculumUri = join(uri, sanitizeFileName(curriculum.name));
+                const map = {
+                    "data": {
+                        "seq": curriculum.sequence,
+                        "idx": curriculum.index
+                    },
+                    "filePath": curriculumUri,
+                    "lessons": []
+                } as CurriculumMapping;
+
+                await fs.createDirectory(curriculumUri);
+                for await (const lesson of curriculum.lessons) {
+                    const lessonUri = join(curriculumUri, sanitizeFileName(lesson.name));
+                    await fs.writeFile(lessonUri, new Uint8Array());
+
+                    map.lessons.push({
+                        "filePath": lessonUri,
+                        "data": {
+                            "idx": lesson.index,
+                            "seq": lesson.sequence
+                        }
+                    });
+                }
+
+                mapping.push(map);
+            }
+
+            await fs.writeFile(
+                join(goormPath, "mapping.json"),
+                new TextEncoder().encode(JSON.stringify(mapping.map(v => mappingToJson(v, uri))))
+            );
+        }
+    );
 
     await vscode.commands.executeCommand("vscode.openFolder", uri, false);
 }

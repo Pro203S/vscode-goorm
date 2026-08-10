@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import * as fs from 'fs';
 import * as path from 'path';
+import workspace from "./workspace";
 
 export async function activate(context: vscode.ExtensionContext) {
 	// 명령어 추가
@@ -51,4 +52,14 @@ export async function activate(context: vscode.ExtensionContext) {
 	statusbar.show();
 
 	context.subscriptions.push(statusbar);
+
+	// 만약 workspace가 열려있을 때
+
+	const folder = vscode.workspace.workspaceFolders?.[0];
+
+	if (folder) {
+		void workspace(context);
+	}
+
+	
 }
