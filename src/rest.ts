@@ -16,7 +16,7 @@ export async function axios({
     context: ExtensionContext
 }) {
     const session = await context.secrets.get(SESSION_SECRET_KEY);
-    if (!session) return instance(config);
+    if (!session) return;
 
     const cookies: BrowserCookie[] = JSON.parse(session);
     const header = cookies.map(v => `${v.name}=${v.value}`).join("; ");

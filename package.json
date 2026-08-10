@@ -32,6 +32,11 @@
             },
             {
                 "category": "goormEDU",
+                "command": "goormEDU.logout",
+                "title": "로그아웃"
+            },
+            {
+                "category": "goormEDU",
                 "command": "goormEDU.start",
                 "title": "문제 풀기"
             }

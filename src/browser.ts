@@ -20,6 +20,13 @@ type CDPProxyInfo = {
     path: string;
 };
 
+type CDPTargetInfo = {
+    targetId: string;
+    type: string;
+    url: string;
+    openerId?: string;
+};
+
 type CDPResponse<T> = {
     id: number;
     result?: T;
@@ -306,6 +313,70 @@ async function getCurrentURL(
     return response.result.value ?? "";
 }
 
+async function getRelatedPageURLs(
+    socket: WebSocket,
+    initialTargetId?: string,
+): Promise<string[]> {
+    const currentURL = await getCurrentURL(
+        socket,
+    );
+
+    if (!initialTargetId) {
+        return [currentURL];
+    }
+
+    let targetInfos: CDPTargetInfo[];
+
+    try {
+        const response = await sendCDP<{
+            targetInfos: CDPTargetInfo[];
+        }>(
+            socket,
+            "Target.getTargets",
+        );
+
+        targetInfos = response.targetInfos;
+    } catch {
+        return [currentURL];
+    }
+
+    const relatedTargetIds = new Set([
+        initialTargetId,
+    ]);
+    let targetAdded = true;
+
+    while (targetAdded) {
+        targetAdded = false;
+
+        for (const target of targetInfos) {
+            if (
+                relatedTargetIds.has(target.targetId) ||
+                !target.openerId ||
+                !relatedTargetIds.has(target.openerId)
+            ) {
+                continue;
+            }
+
+            relatedTargetIds.add(target.targetId);
+            targetAdded = true;
+        }
+    }
+
+    const urls = targetInfos
+        .filter(
+            (target) =>
+                target.type === "page" &&
+                relatedTargetIds.has(target.targetId) &&
+                target.url,
+        )
+        .map((target) => target.url);
+
+    return [...new Set([
+        currentURL,
+        ...urls,
+    ])];
+}
+
 async function getCookiesForURL(
     socket: WebSocket,
     url: string,
@@ -337,9 +408,10 @@ async function waitForResult(
     cookieDomain?: string,
     timeout = 5 * 60 * 1000,
     log: VerboseLogger = silentLogger,
+    initialTargetId?: string,
 ): Promise<BrowserCookie[]> {
     const startedAt = Date.now();
-    let lastURL = "";
+    let lastURLState = "";
     let lastCookieCount = -1;
     let lastError = "";
 
@@ -350,25 +422,33 @@ async function waitForResult(
 
     while (Date.now() - startedAt < timeout) {
         try {
-            const url = await getCurrentURL(
+            const pageURLs = await getRelatedPageURLs(
                 socket,
+                initialTargetId,
             );
-            const completedURLMatched = predicate(url);
+            const currentURL = pageURLs[0] ?? "";
+            const completedURL = pageURLs.find(predicate);
+            const completedURLMatched = completedURL !== undefined;
+            const urlState = JSON.stringify(pageURLs);
 
             lastError = "";
 
-            if (url !== lastURL) {
-                lastURL = url;
-                log("브라우저 URL이 변경됐습니다.", {
-                    url: safeURLForLog(url),
+            if (urlState !== lastURLState) {
+                lastURLState = urlState;
+                log("브라우저 페이지 URL이 변경됐습니다.", {
+                    url: safeURLForLog(currentURL),
                     completedURLMatched,
+                    pageTargetCount: pageURLs.length,
+                    matchedURL: completedURL && completedURL !== currentURL
+                        ? safeURLForLog(completedURL)
+                        : undefined,
                 });
             }
 
-            if (completedURLMatched) {
+            if (completedURL) {
                 let cookies = await getCookiesForURL(
                     socket,
-                    url,
+                    completedURL,
                 );
 
                 if (cookieDomain) {
@@ -396,7 +476,7 @@ async function waitForResult(
                 }
 
                 log("로그인 완료 조건과 쿠키 조건을 충족했습니다.", {
-                    url: safeURLForLog(url),
+                    url: safeURLForLog(completedURL),
                     cookieCount: cookies.length,
                     cookieNames: cookies.map(
                         (cookie) => cookie.name,
@@ -500,6 +580,12 @@ function createURLPredicate(
     return () => true;
 }
 
+function getOpenTabs(): vscode.Tab[] {
+    return vscode.window.tabGroups.all.flatMap(
+        (group) => [...group.tabs],
+    );
+}
+
 export async function openBrowser(
     options: OpenBrowserOptions,
 ): Promise<BrowserCookie[]> {
@@ -517,22 +603,45 @@ export async function openBrowser(
         cookieDomain: options.cookieDomain ?? "(전체)",
     });
 
+    const existingTabs = new Set(
+        getOpenTabs(),
+    );
+    const openedTabs: vscode.Tab[] = [];
+    const tabListener = vscode.window.tabGroups.onDidChangeTabs(
+        (event) => {
+            for (const tab of event.opened) {
+                if (!existingTabs.has(tab)) {
+                    openedTabs.push(tab);
+                }
+            }
+        },
+    );
+
     const sessionPromise = waitForDebugSession(
         sessionName,
         log,
     );
 
-    const started = await vscode.debug.startDebugging(
-        undefined,
-        {
-            type: "editor-browser",
-            request: "launch",
-            name: sessionName,
-            url: options.url,
-        },
-    );
+    let started: boolean;
+
+    try {
+        started = await vscode.debug.startDebugging(
+            undefined,
+            {
+                type: "editor-browser",
+                request: "launch",
+                name: sessionName,
+                url: options.url,
+            },
+        );
+    } catch (error) {
+        tabListener.dispose();
+
+        throw error;
+    }
 
     if (!started) {
+        tabListener.dispose();
         log("Integrated Browser 시작 요청이 거부됐습니다.");
 
         throw new Error(
@@ -543,6 +652,27 @@ export async function openBrowser(
     log("Integrated Browser 시작 요청이 승인됐습니다.");
 
     const sessions = await sessionPromise;
+
+    for (const tab of getOpenTabs()) {
+        if (
+            !existingTabs.has(tab) &&
+            !openedTabs.includes(tab)
+        ) {
+            openedTabs.push(tab);
+        }
+    }
+
+    const activeTab = vscode.window.tabGroups.activeTabGroup.activeTab;
+    const browserTab = activeTab && !existingTabs.has(activeTab)
+        ? activeTab
+        : openedTabs.at(-1);
+
+    tabListener.dispose();
+
+    log("Integrated Browser 에디터 탭을 추적했습니다.", {
+        found: Boolean(browserTab),
+        openedTabCount: openedTabs.length,
+    });
 
     let socket: WebSocket | undefined;
     let completed = false;
@@ -561,6 +691,9 @@ export async function openBrowser(
             options.cookieDomain,
             options.timeout,
             log,
+            typeof sessions.target.configuration.__pendingTargetId === "string"
+                ? sessions.target.configuration.__pendingTargetId
+                : undefined,
         );
 
         completed = true;
@@ -582,11 +715,32 @@ export async function openBrowser(
 
                 log("Integrated Browser 종료 요청을 처리했습니다.");
             } catch (error) {
-                log("Integrated Browser를 닫지 못했습니다.", {
+                log("Integrated Browser 디버그 세션을 종료하지 못했습니다.", {
                     error: error instanceof Error
                         ? error.message
                         : String(error),
                 });
+            }
+
+            if (browserTab) {
+                try {
+                    const tabClosed = await vscode.window.tabGroups.close(
+                        browserTab,
+                        true,
+                    );
+
+                    log("Integrated Browser 에디터 탭을 닫았습니다.", {
+                        closed: tabClosed,
+                    });
+                } catch (error) {
+                    log("Integrated Browser 에디터 탭을 닫지 못했습니다.", {
+                        error: error instanceof Error
+                            ? error.message
+                            : String(error),
+                    });
+                }
+            } else {
+                log("닫을 Integrated Browser 에디터 탭을 찾지 못했습니다.");
             }
         }
     }

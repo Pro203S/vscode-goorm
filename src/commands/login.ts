@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { openBrowser } from '../browser';
 import { SESSION_SECRET_KEY } from '../rest';
 
-function validateURL(url?: string) {
+function validateURL(url?: string): url is string {
 	try {
 		if (!url) return false;
 		const u = new URL(url);
@@ -15,6 +15,31 @@ function validateURL(url?: string) {
 }
 
 export const command = "goormEDU.login";
+
+function createLoginCompletedPredicate(
+    root: string,
+): (url: string) => boolean {
+    const expected = new URL(root);
+    const rootPath = expected.pathname.replace(/\/+$/, "");
+    const loginPath = `${rootPath}/login` || "/login";
+
+    return (url) => {
+        try {
+            const current = new URL(url);
+            const sameSchool =
+                current.hostname.toLowerCase() ===
+                expected.hostname.toLowerCase() &&
+                current.port === expected.port;
+            const isLoginPage =
+                current.pathname === loginPath ||
+                current.pathname.startsWith(`${loginPath}/`);
+
+            return sameSchool && !isLoginPage;
+        } catch {
+            return false;
+        }
+    };
+}
 
 export async function callback(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration("goormEDU");
@@ -38,8 +63,7 @@ export async function callback(context: vscode.ExtensionContext) {
 
     const cookies = await openBrowser({
         "url": `${root}/login`,
-        "completedURL": root,
-        "cookieDomain": ".goorm.io",
+        "completedURL": createLoginCompletedPredicate(root),
         "verbose": true,
     });
 
