@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import getInitialState, { LectureInitialState } from '../initialState';
 import sanitizeFileName from '../lib/sanitizeFileName';
-import { CurriculumMapping, mappingToJson } from '../lib/mapping';
+import { Mapping, mappingToJson } from '../lib/mapping';
+import getQuiz from '../lib/getQuiz';
 
 export async function getUniqueFolderName(
     parentUri: vscode.Uri,
@@ -81,8 +82,10 @@ export async function callback(context: vscode.ExtensionContext) {
             const fs = vscode.workspace.fs;
             const join = vscode.Uri.joinPath;
             const goormPath = vscode.Uri.joinPath(uri, ".goorm");
-
-            const mapping: CurriculumMapping[] = [];
+            const quizzesPath = join(goormPath, "quizzes");
+            await fs.createDirectory(quizzesPath);
+            
+            const mapping: Mapping[] = [];
 
             for await (const curriculum of data.curriculumData) {
                 const curriculumUri = join(uri, sanitizeFileName(curriculum.name));
@@ -93,12 +96,12 @@ export async function callback(context: vscode.ExtensionContext) {
                     },
                     "filePath": curriculumUri,
                     "lessons": []
-                } as CurriculumMapping;
+                } as Mapping;
 
                 await fs.createDirectory(curriculumUri);
                 for await (const lesson of curriculum.lessons) {
                     const lessonUri = join(curriculumUri, sanitizeFileName(lesson.name));
-                    await fs.writeFile(lessonUri, new Uint8Array());
+                    await fs.createDirectory(lessonUri);
 
                     map.lessons.push({
                         "filePath": lessonUri,
@@ -107,6 +110,21 @@ export async function callback(context: vscode.ExtensionContext) {
                             "seq": lesson.sequence
                         }
                     });
+
+                    const quiz = await getQuiz(lecture.index, lesson.index, state.userData.id, context);
+                    if (!quiz) continue;
+
+                    const projectKeys = Object.keys(quiz.result.project);
+                    for await (const projectKey of projectKeys) {
+                        const project = quiz.result.project[projectKey];
+                        const files = project.files;
+                        const projectUri = join(lessonUri, projectKey);
+                        await fs.createDirectory(projectUri);
+
+                        for await (const file of files) {
+                            await fs.writeFile(join(projectUri, file.filename), new TextEncoder().encode(file.content[0].source));
+                        }
+                    }
                 }
 
                 mapping.push(map);
@@ -114,7 +132,7 @@ export async function callback(context: vscode.ExtensionContext) {
 
             await fs.writeFile(
                 join(goormPath, "mapping.json"),
-                new TextEncoder().encode(JSON.stringify(mapping.map(v => mappingToJson(v, uri))))
+                new TextEncoder().encode(JSON.stringify(mapping.map(v => mappingToJson(v, uri)), null, 2))
             );
         }
     );

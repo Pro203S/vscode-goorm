@@ -1,32 +1,31 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-export type CurriculumMapping = {
+export type MappingSequence = {
+    "seq": number,
+    "idx": string
+}
+
+export type Mapping<T = MappingSequence> = {
     "filePath": vscode.Uri,
-    "data": {
-        "seq": number,
-        "idx": string
-    },
+    "data": T,
     "lessons": {
         "filePath": vscode.Uri,
-        "data": {
-            "seq": number,
-            "idx": string
-        }
+        "data": T
     }[]
 };
 
-type JsonMapping = Omit<CurriculumMapping, "filePath" | "lessons"> & {
+type JsonMapping = Omit<Mapping, "filePath" | "lessons"> & {
     "filePath": string,
-    "lessons": (Omit<CurriculumMapping["lessons"][number], "filePath"> & {
+    "lessons": (Omit<Mapping["lessons"][number], "filePath"> & {
         "filePath": string
     })[]
 };
 
 type SerializedUri = Parameters<typeof vscode.Uri.from>[0];
-type LegacyJsonMapping = Omit<CurriculumMapping, "filePath" | "lessons"> & {
+type LegacyJsonMapping = Omit<Mapping, "filePath" | "lessons"> & {
     "filePath": SerializedUri,
-    "lessons": (Omit<CurriculumMapping["lessons"][number], "filePath"> & {
+    "lessons": (Omit<Mapping["lessons"][number], "filePath"> & {
         "filePath": SerializedUri
     })[]
 };
@@ -60,7 +59,7 @@ function fromWorkspaceRelativePath(workspaceUri: vscode.Uri, relativePath: strin
         : vscode.Uri.joinPath(workspaceUri, normalizedPath);
 }
 
-export function mappingToJson(mapping: CurriculumMapping, workspaceUri: vscode.Uri): JsonMapping {
+export function mappingToJson(mapping: Mapping, workspaceUri: vscode.Uri): JsonMapping {
     return {
         ...mapping,
         "filePath": toWorkspaceRelativePath(workspaceUri, mapping.filePath),
@@ -85,5 +84,5 @@ export function jsonToMapping(json: JsonMapping | LegacyJsonMapping, workspaceUr
                 ? fromWorkspaceRelativePath(workspaceUri, v.filePath)
                 : vscode.Uri.joinPath(curriculumUri, path.posix.basename(vscode.Uri.from(v.filePath).path))
         }))
-    } satisfies CurriculumMapping;
+    } satisfies Mapping;
 }

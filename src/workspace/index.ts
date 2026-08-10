@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import getInitialState from '../initialState';
+import registerGuideAnchors from './guideAnchors';
 
 export default async function workspace(context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder;
@@ -23,5 +24,10 @@ export default async function workspace(context: vscode.ExtensionContext) {
 
     vscode.window.showInformationMessage(`현재 ${userData.name}으(로) 구름EDU에 로그인되어있습니다.`);
 
+    const fs = vscode.workspace.fs;
 
+    context.subscriptions.push(
+        registerGuideAnchors(),
+        //vscode.workspace.onDidOpenTextDocument()
+    );
 }
