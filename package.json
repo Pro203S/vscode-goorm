@@ -1,0 +1,61 @@
+{
+    "name": "vscode-goorm",
+    "displayName": "vscode-goorm",
+    "description": "goormEDU in VSCode",
+    "version": "0.0.1",
+    "engines": {
+        "vscode": "^1.116.0"
+    },
+    "categories": [
+        "Other"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "configuration": {
+            "title": "구름EDU 설정",
+            "properties": {
+                "goormEDU.root": {
+                    "type": "string",
+                    "default": "",
+                    "description": "학교의 구름EDU URL입니다."
+                }
+            }
+        },
+        "commands": [
+            {
+                "category": "goormEDU",
+                "command": "goormEDU.login",
+                "title": "로그인"
+            }
+        ]
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "pretest": "npm run compile && npm run lint",
+        "lint": "eslint src",
+        "test": "vscode-test"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.6",
+        "@types/mocha": "^10.0.10",
+        "@types/node": "22.x",
+        "@types/vscode": "^1.116.0",
+        "@types/ws": "^8.18.1",
+        "@vscode/test-cli": "^0.0.12",
+        "@vscode/test-electron": "^2.5.2",
+        "eslint": "^9.39.3",
+        "typescript": "^5.9.3",
+        "typescript-eslint": "^8.56.1"
+    },
+    "dependencies": {
+        "axios": "^1.19.0",
+        "cheerio": "^1.2.0",
+        "express": "^5.2.1",
+        "ws": "^8.21.3"
+    }
+}

@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"module": "Node16",
+		"target": "ES2022",
+		"outDir": "out",
+		"lib": [
+			"ES2022",
+			"dom"
+		],
+		"sourceMap": true,
+		"rootDir": "src",
+		"strict": true,
+		"types": [
+			"./declarations.d.ts"
+		]
+	}
+}
