@@ -1,7 +1,6 @@
 import * as vscode from "vscode";
 import * as fs from 'fs';
 import * as path from 'path';
-import { SESSION_SECRET_KEY } from "./session";
 
 export async function activate(context: vscode.ExtensionContext) {
 	const commands = fs.readdirSync(path.join(context.extensionPath, "./out/commands"), "utf-8")
@@ -28,8 +27,4 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	const session = await context.secrets.get(SESSION_SECRET_KEY);
-	if (!session) return;
-
-	
 }

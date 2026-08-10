@@ -1,5 +1,5 @@
 import { ExtensionContext } from "vscode";
-import { axios } from "./session";
+import { axios } from "./rest";
 import { load } from "cheerio";
 
 export type InitialState = {
@@ -202,5 +202,6 @@ function g(html: string): unknown {
 
 export default async function getInitialState(context: ExtensionContext) {
     const data = (await axios({ "url": "https://sunrint-hs.goorm.io", context }))?.data;
+    if (!data) return;
     return g(data) as InitialState;
 }

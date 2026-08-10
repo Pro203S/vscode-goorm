@@ -17,7 +17,7 @@
         "configuration": {
             "title": "구름EDU 설정",
             "properties": {
-                "goormEDU.root": {
+                "goormEDU.url": {
                     "type": "string",
                     "default": "",
                     "description": "학교의 구름EDU URL입니다."
@@ -29,6 +29,11 @@
                 "category": "goormEDU",
                 "command": "goormEDU.login",
                 "title": "로그인"
+            },
+            {
+                "category": "goormEDU",
+                "command": "goormEDU.start",
+                "title": "문제 풀기"
             }
         ]
     },

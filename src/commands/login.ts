@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { openBrowser } from '../browser';
-import { SESSION_SECRET_KEY } from '../session';
+import { SESSION_SECRET_KEY } from '../rest';
 
 function validateURL(url?: string) {
 	try {
@@ -19,7 +19,7 @@ export const command = "goormEDU.login";
 export async function callback(context: vscode.ExtensionContext) {
     const config = vscode.workspace.getConfiguration("goormEDU");
 
-    let root = config.get<string>("root");
+    let root = config.get<string>("url");
     if (!validateURL(root)) {
         const newRoot = await vscode.window.showInputBox({
             "title": "goormEDU 설정",
@@ -33,7 +33,7 @@ export async function callback(context: vscode.ExtensionContext) {
         }
 
         root = newRoot;
-        await config.update("root", newRoot, 1);
+        await config.update("url", newRoot, 1);
     }
 
     const cookies = await openBrowser({
