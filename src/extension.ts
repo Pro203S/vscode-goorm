@@ -29,7 +29,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	const session = await context.secrets.get(SESSION_SECRET_KEY);
-	if (!session) await vscode.commands.executeCommand("goormEDU.login");
-	
+	if (!session) return;
+
 	
 }

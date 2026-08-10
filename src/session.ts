@@ -9,10 +9,12 @@ export let instance = Axios.create({
     "withCredentials": true
 });
 
-export async function axios(config: AxiosRequestConfig & {
+export async function axios({
+    context,
+    ...config
+}: AxiosRequestConfig & {
     context: ExtensionContext
 }) {
-    const { context } = config;
     const session = await context.secrets.get(SESSION_SECRET_KEY);
     if (!session) return;
 
