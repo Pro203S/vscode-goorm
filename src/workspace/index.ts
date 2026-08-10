@@ -25,11 +25,9 @@ export default async function workspace(context: vscode.ExtensionContext) {
 
     vscode.window.showInformationMessage(`현재 ${state.userData.name}으(로) 구름EDU에 로그인되어있습니다.`);
 
-    const fs = vscode.workspace.fs;
-
     context.subscriptions.push(
         registerGuideAnchors(),
         registerQuizWorkspace(context, folder, state),
-        //vscode.workspace.onDidOpenTextDocument()
+        vscode.workspace.onDidSaveTextDocument(() => vscode.commands.executeCommand("goormEDU.save"))
     );
 }

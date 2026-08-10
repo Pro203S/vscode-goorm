@@ -28,7 +28,7 @@ export async function callback(context: vscode.ExtensionContext) {
             "placeHolder": "https://sunrint-hs.goorm.io"
         });
         if (!validateURL(newRoot)) {
-            vscode.window.showErrorMessage("구름EDU의 루트 URL이 잘못되었기 때문에 로그인 할 수 없습니다.");
+            vscode.window.showErrorMessage("구름EDU의 루트 URL이 잘못되었기 때문에 로그아웃 할 수 없습니다.");
             return;
         }
 

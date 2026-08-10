@@ -3,10 +3,11 @@ import { getActiveQuiz } from "../workspace/quizContext";
 
 export const command = "goormEDU.submitQuiz";
 
-export async function callback(): Promise<void> {
+export async function callback(context: vscode.ExtensionContext): Promise<void> {
     const quiz = getActiveQuiz();
 
     if (!quiz) {
+        vscode.window.showErrorMessage("구름EDU 워크스페이스에서만 사용할 수 있습니다.");
         return;
     }
 
@@ -15,30 +16,5 @@ export async function callback(): Promise<void> {
         "구름EDU 문제 열기",
     );
 
-    if (action !== "구름EDU 문제 열기") {
-        return;
-    }
 
-    const root = vscode.workspace
-        .getConfiguration("goormEDU")
-        .get<string>("url");
-
-    if (!root) {
-        await vscode.window.showErrorMessage("goormEDU.url 설정이 필요합니다.");
-        return;
-    }
-
-    const { lecture, lesson } = quiz.metadata;
-    const lessonPath = [
-        "learn",
-        "lecture",
-        lecture.sequence,
-        lecture.urlSlug,
-        "lesson",
-        lesson.sequence,
-        lesson.urlSlug,
-    ].map((part) => encodeURIComponent(String(part))).join("/");
-    const url = new URL(lessonPath, root.endsWith("/") ? root : `${root}/`);
-
-    await vscode.env.openExternal(vscode.Uri.parse(url.toString()));
 }
