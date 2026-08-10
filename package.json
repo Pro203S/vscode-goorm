@@ -1,6 +1,6 @@
 {
     "name": "vscode-goorm",
-    "displayName": "vscode-goorm",
+    "displayName": "구름EDU",
     "description": "goormEDU in VSCode",
     "version": "0.0.1",
     "engines": {
@@ -40,7 +40,16 @@
                 "command": "goormEDU.start",
                 "title": "문제 풀기"
             }
-        ]
+        ],
+        "icons": {
+            "goormEDU-logo": {
+                "description": "goormEDU logo",
+                "default": {
+                    "fontPath": "goorm-icon.woff",
+                    "fontCharacter": "\\E001"
+                }
+            }
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",

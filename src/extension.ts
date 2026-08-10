@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 export async function activate(context: vscode.ExtensionContext) {
+	// 명령어 추가
 	const commands = fs.readdirSync(path.join(context.extensionPath, "./out/commands"), "utf-8")
 		.filter(v => v.endsWith(".js"))
 		.map(v => `./commands/${v}`);
@@ -27,4 +28,27 @@ export async function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
+	// 설정 변경 (files.exclude)
+	const config = vscode.workspace.getConfiguration("files");
+
+	await config.update(
+		"exclude",
+		{
+			...config.get<Record<string, boolean>>("exclude"),
+			"**/.goorm": true,
+		},
+		vscode.ConfigurationTarget.Global,
+	);
+
+	// 상태바 아이콘
+	const statusbar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+
+	statusbar.name = "구름EDU";
+	statusbar.command = "goormEDU.start";
+	statusbar.text = "$(goormEDU-logo)";
+	statusbar.tooltip = "구름EDU 문제 풀기";
+
+	statusbar.show();
+
+	context.subscriptions.push(statusbar);
 }
