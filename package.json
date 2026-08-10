@@ -39,8 +39,45 @@
                 "category": "goormEDU",
                 "command": "goormEDU.start",
                 "title": "문제 풀기"
+            },
+            {
+                "category": "goormEDU",
+                "command": "goormEDU.save",
+                "title": "저장",
+                "icon": "$(save)"
+            },
+            {
+                "category": "goormEDU",
+                "command": "goormEDU.runQuiz",
+                "title": "실행",
+                "icon": "$(play)"
+            },
+            {
+                "category": "goormEDU",
+                "command": "goormEDU.submitQuiz",
+                "title": "제출",
+                "icon": "$(cloud-upload)"
             }
         ],
+        "menus": {
+            "editor/title": [
+                {
+                    "command": "goormEDU.runQuiz",
+                    "when": "goormEDU.isQuizFile",
+                    "group": "navigation@10"
+                },
+                {
+                    "command": "goormEDU.submitQuiz",
+                    "when": "goormEDU.isQuizFile",
+                    "group": "navigation@11"
+                },
+                {
+                    "command": "goormEDU.save",
+                    "when": "goormEDU.isQuizFile",
+                    "group": "navigation@12"
+                }
+            ]
+        },
         "icons": {
             "goormEDU-logo": {
                 "description": "goormEDU logo",

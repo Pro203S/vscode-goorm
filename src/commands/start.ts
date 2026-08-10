@@ -3,6 +3,7 @@ import getInitialState, { LectureInitialState } from '../initialState';
 import sanitizeFileName from '../lib/sanitizeFileName';
 import { Mapping, mappingToJson } from '../lib/mapping';
 import getQuiz from '../lib/getQuiz';
+import { createQuizMetadata, getQuizMetadataUri } from '../lib/quizMetadata';
 
 export async function getUniqueFolderName(
     parentUri: vscode.Uri,
@@ -113,6 +114,26 @@ export async function callback(context: vscode.ExtensionContext) {
 
                     const quiz = await getQuiz(lecture.index, lesson.index, state.userData.id, context);
                     if (!quiz) continue;
+
+                    const quizMetadata = createQuizMetadata(
+                        quiz,
+                        {
+                            "index": lecture.index,
+                            "sequence": lecture.sequence,
+                            "urlSlug": lecture.url_slug,
+                        },
+                        {
+                            "index": lesson.index,
+                            "sequence": lesson.sequence,
+                            "urlSlug": lesson.urlSlug,
+                            "name": lesson.name,
+                        },
+                    );
+
+                    await fs.writeFile(
+                        getQuizMetadataUri(uri, lesson.index),
+                        new TextEncoder().encode(JSON.stringify(quizMetadata, null, 2)),
+                    );
 
                     const projectKeys = Object.keys(quiz.result.project);
                     for await (const projectKey of projectKeys) {

@@ -1,14 +1,15 @@
 import * as vscode from 'vscode';
 import getInitialState from '../initialState';
 import registerGuideAnchors from './guideAnchors';
+import registerQuizWorkspace from './quiz';
 
 export default async function workspace(context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder;
     const directory = await vscode.workspace.fs.readDirectory(folder.uri);
     if (!directory.find(v => v[0] === ".goorm" && v[1] === 2)) return;
 
-    const { userData } = await getInitialState("/", context) ?? {};
-    if (!userData) {
+    const state = await getInitialState("/", context);
+    if (!state?.userData) {
         await vscode.window.showErrorMessage(
             "구름EDU 오류",
             {
@@ -22,12 +23,13 @@ export default async function workspace(context: vscode.ExtensionContext) {
         return;
     }
 
-    vscode.window.showInformationMessage(`현재 ${userData.name}으(로) 구름EDU에 로그인되어있습니다.`);
+    vscode.window.showInformationMessage(`현재 ${state.userData.name}으(로) 구름EDU에 로그인되어있습니다.`);
 
     const fs = vscode.workspace.fs;
 
     context.subscriptions.push(
         registerGuideAnchors(),
+        registerQuizWorkspace(context, folder, state),
         //vscode.workspace.onDidOpenTextDocument()
     );
 }
