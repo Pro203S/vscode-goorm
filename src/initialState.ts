@@ -1,6 +1,8 @@
 import { ExtensionContext } from "vscode";
 import { axios } from "./rest";
 import { load } from "cheerio";
+import { getGoormUrl, validateURL } from "./lib/validateURL";
+import * as vscode from 'vscode';
 
 export type LectureInitialState = {
     isIE: boolean;
@@ -247,6 +249,473 @@ export type LectureInitialState = {
     };
 };
 
+export type QuizInitialState = {
+    isIE: boolean;
+    locale: string;
+    host: string;
+
+    userData: {
+        id: string;
+        name: string;
+        email: string;
+        language: string;
+        isTeacher: boolean;
+        isAdmin: boolean;
+        hasLoginId: boolean;
+        isDevelupUser: boolean;
+    };
+
+    channel: {
+        index: string;
+        name: string;
+        channelType: string;
+        useAssessment: boolean;
+        hideChat: boolean;
+        hideQna: boolean;
+        hideAllCategory: boolean;
+        hideSearchBar: boolean;
+        useTTSAudio: boolean;
+    };
+
+    isChannel: boolean;
+    isChannelGroup: boolean;
+    isMobile: boolean;
+
+    collaborationRoomId: string;
+    collaborationRoomName: string;
+    isMine: boolean;
+
+    lesson: {
+        _id: string;
+
+        badge: {
+            name: string;
+            src: string;
+        };
+
+        completionConditionOptions: {
+            resolveQuiz: number;
+            watchVideo: boolean;
+        };
+
+        files: unknown[];
+        not_opened: unknown[];
+
+        tutorial_quiz_contents_components: {
+            type: string;
+            content: string;
+            componentKey: string;
+        }[];
+
+        repl_lang: string[];
+
+        view_count: number;
+        is_preview: boolean;
+        collaboration: string;
+
+        contentsCategory: null;
+        contentsType: string;
+
+        useAISA: boolean;
+
+        contents_components: {
+            type: string;
+            content: string;
+
+            playerOptions: {
+                captions: unknown[];
+            };
+
+            index_arr: unknown[];
+            inflearnUnitList: unknown[];
+
+            _id: string;
+            componentKey: string;
+        }[];
+
+        llmQuizList: unknown[];
+
+        index: string;
+        lecture_index: string;
+        subject: string;
+        instructor: string;
+        create_time: string;
+        type: string;
+        updated: string;
+
+        tutorial_quiz_index: string;
+        quiz_form: string;
+        lecture_subject: string;
+
+        is_sample: boolean;
+        is_open: boolean;
+
+        connected_lesson: string;
+        origin_lesson_index: string;
+
+        url_slug: string;
+        sequence: number;
+
+        __v: number;
+
+        enableCopyPasteCode: boolean;
+
+        state: number;
+
+        completedConditions: {
+            resolveQuiz: number;
+        };
+
+        quiz: {
+            answer_language: string[];
+
+            contentsType: string;
+            contents: string;
+
+            useRunScreenExample: boolean;
+            runScreenExample: string;
+
+            inputExample: string[];
+            outputExample: string[];
+
+            isCollaborationQuizForm: boolean;
+
+            options: Record<string, never>;
+
+            markOptions: {
+                mark_trim: boolean;
+                mark_line_trim: boolean;
+                mark_all_trim: boolean;
+                mark_delete_comma: boolean;
+                mark_delete_period: boolean;
+                mark_ignore_capital: boolean;
+            };
+        };
+    };
+
+    userAgent: string;
+
+    isIE11: boolean;
+    isHelpChannel: boolean;
+
+    embed: null;
+
+    ideHost: string;
+    entryHostPath: string;
+    microbitHostPath: string;
+    codingpartyEntryHostPath: string;
+
+    serviceNotice: null;
+
+    accountHost: string;
+
+    thirdPartySettings: {
+        exp: {
+            active: boolean;
+        };
+
+        aiGoormee: {
+            active: boolean;
+            lectureSettingActive: boolean;
+        };
+
+        mOTP: Record<string, never>;
+    };
+
+    isStudent: boolean;
+    isTeacher: boolean;
+
+    lecture: {
+        index: string;
+        type: number;
+        subject: string;
+        description: string;
+        contents: string;
+        coverImage: string;
+
+        id: string;
+        student_count: number;
+        origin_channel_index: string;
+
+        category: {
+            first: {
+                id: string;
+
+                label: {
+                    default: string;
+                    ko: string;
+                    en: string;
+                    ja: string;
+                };
+            };
+
+            second: {
+                id: string;
+
+                label: {
+                    default: string;
+                    ko: string;
+                    en: string;
+                    ja: string;
+                };
+            };
+
+            _id: string;
+        };
+
+        lessons: string[];
+
+        estimatedTime: number;
+        period: null;
+
+        use_certificate: boolean;
+
+        curriculum: {
+            text: string;
+            id: string;
+
+            children: {
+                text: string;
+                id: string;
+                type: string;
+
+                children: {
+                    text: string;
+                    id: string;
+
+                    sequence: number;
+
+                    url_slug: string;
+
+                    type: string;
+                    quiz_form: string;
+
+                    time_set?: boolean;
+                    open_date?: string | null;
+                    close_date?: string | null;
+
+                    is_preview: boolean;
+                }[];
+            }[];
+        }[];
+
+        connect_ide: boolean;
+        connect_external_url: boolean;
+
+        open_lesson: string;
+
+        open_print: boolean;
+        open_copy: boolean;
+
+        difficulty: number;
+
+        classification: unknown[];
+
+        is_toll: boolean;
+
+        price: null;
+        discount: null;
+
+        operationStartDate: null;
+        operationEndDate: null;
+
+        applicant_limit_number: number;
+
+        review: {
+            total_score: number;
+            participants_count: number;
+            grade: number;
+            active: boolean;
+        };
+
+        base_lecture_index: string;
+
+        is_subscribing: boolean;
+
+        recommend: {
+            text: string;
+            _id: string;
+        }[];
+
+        introVideo: null;
+
+        disable_tutoring: boolean;
+        hideLectureChat: boolean;
+        useLive: boolean;
+
+        attendanceType: number;
+
+        useIdeProject: boolean;
+
+        aiGoormee: {
+            problemHint: {
+                active: boolean;
+            };
+
+            codeSolution: {
+                active: boolean;
+            };
+
+            codeExplanation: {
+                active: boolean;
+            };
+
+            aiReport: {
+                active: boolean;
+            };
+        };
+
+        showFileShareTab: boolean;
+
+        editorVersion: null;
+
+        url_slug: string;
+
+        sequence: number;
+
+        joinDate: string;
+
+        students_length: number;
+
+        live: null;
+
+        isEvaluatable: number;
+
+        curriculumData: {
+            label: string;
+            index: string;
+            name: string;
+
+            isUserPermission: boolean;
+
+            allLessons: number;
+            completedLessons: number;
+
+            new: boolean;
+
+            lessons: {
+                index: string;
+                sequence: number;
+
+                urlSlug: string;
+
+                type: string;
+                name: string;
+
+                isOpen: boolean;
+
+                first_access?: string;
+                last_access?: string;
+                completedAt?: string;
+
+                isSample: boolean;
+
+                state: number;
+                score: number;
+
+                create_time: string;
+
+                new: boolean;
+
+                tutorialQuizIndex: string;
+
+                hasSubmittedSource?: boolean;
+
+                icon: string;
+
+                hasVideo: boolean;
+                isPreview: boolean;
+                isLocked: boolean;
+                isPrivate: boolean;
+
+                ackTime: number;
+
+                contentsCategory: null;
+                contentsType: string;
+            }[];
+        }[];
+
+        lastAccessLesson: {
+            lessonCount: number;
+            completedLessonCount: number;
+
+            lesson: {
+                text: string;
+                id: string;
+
+                sequence: number;
+
+                url_slug: string;
+
+                type: string;
+                quiz_form: string;
+
+                time_set: boolean;
+
+                open_date: string;
+                close_date: string;
+
+                is_preview: boolean;
+
+                contents_components: {
+                    type: string;
+                    content: string;
+
+                    playerOptions: {
+                        captions: unknown[];
+                    };
+
+                    index_arr: unknown[];
+                    inflearnUnitList: unknown[];
+
+                    _id: string;
+                }[];
+
+                index: string;
+
+                create_time: string;
+                updated: string;
+
+                tutorial_quiz_index: string;
+
+                is_sample: boolean;
+
+                origin_lesson_index: string;
+
+                isPrivate: boolean;
+            };
+
+            chapter: string;
+            chapterNumber: number;
+
+            isOpen: boolean;
+
+            wasReviewModalOpened: {
+                first: boolean;
+                last: boolean;
+            };
+        };
+
+        isEvaluated: boolean;
+
+        educatorsData: {
+            _id: string;
+            id: string;
+            name: string;
+        };
+
+        certificateId: boolean;
+
+        videoStartTimes: Record<string, never>;
+    };
+
+    collaborationRoomType: string;
+    isCollaboration: boolean;
+    isGuest: boolean;
+    isCollaborationQuizForm: boolean;
+    showFileShareTab: boolean;
+};
+
 export type InitialState = {
     isIE: boolean;
     locale: string;
@@ -446,6 +915,9 @@ function g(html: string): unknown {
 }
 
 export default async function getInitialState<T = InitialState>(path: string, context: ExtensionContext): Promise<T | undefined> {
+    const root = await getGoormUrl();
+    if (!root) return;
+
     const data = (await axios({ "url": "https://sunrint-hs.goorm.io" + path, context }))?.data;
     if (!data) return;
     return g(data) as T;

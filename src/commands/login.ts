@@ -1,18 +1,8 @@
 import * as vscode from 'vscode';
 import { openBrowser } from '../browser';
 import { SESSION_SECRET_KEY } from '../rest';
-
-function validateURL(url?: string): url is string {
-	try {
-		if (!url) return false;
-		const u = new URL(url);
-		if (!u.hostname.includes(".goorm.io")) return false;
-
-		return true;
-	} catch {
-		return false;
-	}
-}
+import { getGoormUrl, validateURL } from '../lib/validateURL';
+import getInitialState from '../initialState';
 
 export const command = "goormEDU.login";
 
@@ -42,24 +32,8 @@ function createLoginCompletedPredicate(
 }
 
 export async function callback(context: vscode.ExtensionContext) {
-    const config = vscode.workspace.getConfiguration("goormEDU");
-
-    let root = config.get<string>("url");
-    if (!validateURL(root)) {
-        const newRoot = await vscode.window.showInputBox({
-            "title": "goormEDU 설정",
-            "prompt": "구름EDU의 루트 URL을 입력해주세요. (예시: https://sunrint-hs.goorm.io)",
-            "ignoreFocusOut": false,
-            "placeHolder": "https://sunrint-hs.goorm.io"
-        });
-        if (!validateURL(newRoot)) {
-            vscode.window.showErrorMessage("구름EDU의 루트 URL이 잘못되었기 때문에 로그인 할 수 없습니다.");
-            return;
-        }
-
-        root = newRoot;
-        await config.update("url", newRoot, 1);
-    }
+    const root = await getGoormUrl();
+    if (!root) return;
 
     const cookies = await openBrowser({
         "url": `${root}/login`,
@@ -71,8 +45,14 @@ export async function callback(context: vscode.ExtensionContext) {
         SESSION_SECRET_KEY,
         JSON.stringify(cookies),
     );
+    
+    const state = await getInitialState("/", context);
+    if (!state) {
+        vscode.window.showErrorMessage("사용자의 정보를 가져오는데 실패했습니다.");
+        return;
+    }
 
-    console.log("[goormEDU] Login completed.", {
-        cookieCount: cookies.length,
-    });
+    vscode.window.showInformationMessage(`${state.userData.name}으로 로그인되었습니다.`);
+
+    console.log("[goormEDU] Login completed.");
 }

@@ -188,22 +188,42 @@ class QuizWorkspaceController implements vscode.Disposable {
         const metadata = storedMetadata
             ? await this.ensurePresentation(storedMetadata)
             : undefined;
+        const projectEntry = document && lesson && metadata
+            ? Object.entries(metadata.result.project).find(([projectKey]) =>
+                isUriInside(vscode.Uri.joinPath(lesson.filePath, projectKey), document.uri),
+            )
+            : undefined;
 
         if (id !== this.updateId) {
             return;
         }
 
-        const isQuizFile = Boolean(document && lesson && metadata);
+        const isQuizFile = Boolean(document && lesson && metadata && projectEntry);
         await vscode.commands.executeCommand("setContext", QUIZ_FILE_CONTEXT, isQuizFile);
 
-        if (!document || !lesson || !metadata) {
+        if (!document || !lesson || !metadata || !projectEntry) {
             setActiveQuiz(undefined);
             this.panel?.dispose();
             this.panel = undefined;
             return;
         }
 
-        setActiveQuiz({ document, lesson, metadata });
+        const [projectKey, project] = projectEntry;
+
+        setActiveQuiz({
+            document,
+            lecture: metadata.lecture,
+            lesson: {
+                ...lesson,
+                ...metadata.lesson,
+            },
+            project: {
+                ...project,
+                key: projectKey,
+                uri: vscode.Uri.joinPath(lesson.filePath, projectKey),
+            },
+            metadata,
+        });
         this.showDescription(metadata);
     }
 

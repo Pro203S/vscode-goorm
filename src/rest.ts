@@ -9,6 +9,16 @@ export let instance = Axios.create({
     "withCredentials": true
 });
 
+export async function getCookie(context: ExtensionContext) {
+    const session = await context.secrets.get(SESSION_SECRET_KEY);
+    if (!session) return;
+
+    const cookies: BrowserCookie[] = JSON.parse(session);
+    const header = cookies.map(v => `${v.name}=${v.value}`).join("; ");
+
+    return header;
+}
+
 export async function axios({
     context,
     ...config

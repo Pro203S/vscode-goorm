@@ -92,8 +92,11 @@ export function isQuizMetadata(value: unknown): value is QuizMetadata {
     return (
         metadata.version === QUIZ_METADATA_VERSION &&
         typeof metadata.lecture?.index === "string" &&
+        typeof metadata.lecture?.urlSlug === "string" &&
         typeof metadata.lesson?.index === "string" &&
+        typeof metadata.lesson?.urlSlug === "string" &&
         typeof metadata.lesson?.name === "string" &&
-        Boolean(metadata.result && typeof metadata.result === "object")
+        Boolean(metadata.result && typeof metadata.result === "object") &&
+        Boolean(metadata.result?.project && typeof metadata.result.project === "object")
     );
 }

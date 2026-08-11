@@ -1,10 +1,19 @@
 import * as vscode from "vscode";
 import { Mapping } from "../lib/mapping";
-import { QuizMetadata } from "../lib/quizMetadata";
+import { QuizMetadata, StoredQuizProject } from "../lib/quizMetadata";
+
+export type ActiveQuizLesson = Mapping["lessons"][number] & QuizMetadata["lesson"];
+
+export type ActiveQuizProject = StoredQuizProject & {
+    key: string;
+    uri: vscode.Uri;
+};
 
 export type ActiveQuiz = {
     document: vscode.TextDocument;
-    lesson: Mapping["lessons"][number];
+    lecture: QuizMetadata["lecture"];
+    lesson: ActiveQuizLesson;
+    project: ActiveQuizProject;
     metadata: QuizMetadata;
 };
 
