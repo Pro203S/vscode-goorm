@@ -2,6 +2,10 @@ import * as vscode from 'vscode';
 import getInitialState from '../initialState';
 import registerGuideAnchors from './guideAnchors';
 import registerQuizWorkspace from './quiz';
+import { getSocket, setSocket } from '../lib/socketContext';
+import SocketIO from '../lib/socketIo';
+import { getGoormUrl } from '../lib/validateURL';
+import { getCookie } from '../rest';
 
 export default async function workspace(context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder;
@@ -15,19 +19,55 @@ export default async function workspace(context: vscode.ExtensionContext) {
             {
                 "modal": true,
                 "detail": "구름EDU의 계정 정보를 가져올 수 없습니다.",
-            },
-            "로그아웃"
+            }
         );
-        await vscode.commands.executeCommand("goormEDU.logout");
+        await vscode.commands.executeCommand("workbench.action.closeFolder");
+        return;
+    }
+
+    const url = await getGoormUrl();
+    if (!url) {
+        await vscode.window.showErrorMessage(
+            "구름EDU 오류",
+            {
+                "modal": true,
+                "detail": "구름EDU의 URL이 잘못되었습니다.",
+            }
+        );
         await vscode.commands.executeCommand("workbench.action.closeFolder");
         return;
     }
 
     vscode.window.showInformationMessage(`현재 ${state.userData.name}으로 구름EDU에 로그인되어있습니다.`);
 
+    const sock = getSocket();
+    if (sock) {
+        sock.close();
+        setSocket(undefined);
+    }
+
+    const io = new SocketIO(url, {
+        "cookies": await getCookie(context)
+    });
+    setSocket(io);
+
+    io.on("error", async (error: Error) => {
+        await vscode.window.showErrorMessage("구름EDU: " + error.message);
+        setSocket(undefined);
+        await vscode.commands.executeCommand("workbench.action.closeFolder");
+    });
+
+    io.on("close", async ({ code, reason }) => {
+        await vscode.window.showErrorMessage("구름EDU: 소켓이 닫혔어요. " + code + " " + Buffer.from(reason).toString("utf-8"));
+        setSocket(undefined);
+        await vscode.commands.executeCommand("workbench.action.closeFolder");
+    });
+
+    await io.connect();
+
     context.subscriptions.push(
         registerGuideAnchors(),
         registerQuizWorkspace(context, folder, state),
-        vscode.workspace.onDidSaveTextDocument(() => vscode.commands.executeCommand("goormEDU.save"))
+        vscode.workspace.onDidSaveTextDocument(() => vscode.commands.executeCommand("goormEDU.save")),
     );
 }

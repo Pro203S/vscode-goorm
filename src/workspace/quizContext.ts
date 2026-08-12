@@ -9,11 +9,17 @@ export type ActiveQuizProject = StoredQuizProject & {
     uri: vscode.Uri;
 };
 
+export type ActiveQuizFile = StoredQuizProject["files"][number] & {
+    index: number;
+    uri: vscode.Uri;
+};
+
 export type ActiveQuiz = {
     document: vscode.TextDocument;
     lecture: QuizMetadata["lecture"];
     lesson: ActiveQuizLesson;
     project: ActiveQuizProject;
+    file: ActiveQuizFile | undefined;
     metadata: QuizMetadata;
 };
 

@@ -12,6 +12,7 @@ export default class SocketIO {
         private baseUrl: string,
         private opts?: {
             cookies?: string;
+            verbose?: boolean;
         }
     ) { }
 
@@ -21,14 +22,41 @@ export default class SocketIO {
         this.ws = new WebSocket(
             `${wsUrl}/socket.io/?EIO=4&transport=websocket`,
             {
-                headers: {
-                    Cookie: this.opts?.cookies
-                }
+                headers: this.opts?.cookies ? {
+                    Cookie: this.opts.cookies
+                } : {}
             }
         );
 
+        if (this.opts?.verbose) {
+            this.ws.on("open", () => {
+                console.log("[goormEdu]", "SocketOpen", wsUrl);
+            });
+
+            this.ws.on("unexpected-response", (req, res) => {
+                console.log("[goormEdu]", "Socket unexpected-response", req, res);
+            });
+
+            this.ws.on("ping", () => {
+                console.log("[goormEdu]", "Socket ping");
+            });
+
+            this.ws.on("pong", () => {
+                console.log("[goormEdu]", "Socket pong");
+            });
+
+            this.ws.on("upgrade", (req) => {
+                console.log("[goormEdu]", "Socket upgrade", req);
+            });
+
+            this.ws.on("redirect", (req) => {
+                console.log("[goormEdu]", "Socket redirect", req);
+            });
+        }
+
         this.ws.on("close", (code, reason) => {
-            console.log("[goormEdu]", "SocketClosed", code, Buffer.from(reason).toString("utf-8"));
+            if (this.opts?.verbose)
+                console.log("[goormEdu]", "SocketClosed", code, Buffer.from(reason).toString("utf-8"));
             if (code - 1000 < 1000) return;
 
             this.emitLocal("close", { code, reason });
@@ -40,17 +68,21 @@ export default class SocketIO {
         this.ws.on("message", (msg) => {
             try {
                 const str = msg.toString();
-                
+                if (this.opts?.verbose)
+                    console.log("[goormEdu]", "SocketDown", str);
+
                 // ping
                 if (str === "2") {
-                    console.log("[goormEdu]", "SocketSend 3");
+                    if (this.opts?.verbose)
+                        console.log("[goormEdu]", "SocketSend 3");
                     this.ws.send("3");
                     return;
                 }
 
                 // 연결 처리
                 if (str.startsWith("0")) {
-                    console.log("[goormEdu]", "SocketSend 40");
+                    if (this.opts?.verbose)
+                        console.log("[goormEdu]", "SocketSend 40");
                     this.ws.send("40");
                     return;
                 }
@@ -58,11 +90,13 @@ export default class SocketIO {
                 // event
                 if (str.startsWith("42")) {
                     const [event, data] = JSON.parse(str.slice(2));
-                console.log("[goormEdu]", "SocketDown", event, data);
                     this.emitLocal(event, data);
                 }
             } catch (err) {
                 const e = err as Error;
+                if (this.opts?.verbose)
+                    console.error("[goormEdu]", e);
+
                 this.emitLocal("error", e);
                 this.close();
             }
@@ -72,6 +106,8 @@ export default class SocketIO {
             const listener = (msg: RawData) => {
                 try {
                     const str = msg.toString();
+                    if (this.opts?.verbose)
+                        console.log("[goormEdu]", "received", str);
 
                     if (str.startsWith("40") && !received40) {
                         received40 = true;
@@ -95,7 +131,8 @@ export default class SocketIO {
         if (!this.ws) throw new Error("not connected");
 
         const payload = `42${JSON.stringify([event, data])}`;
-        console.log("[goormEdu]", "SocketSend", payload);
+        if (this.opts?.verbose)
+            console.log("[goormEdu]", "SocketSend", payload);
         this.ws.send(payload);
     }
 
