@@ -88,7 +88,8 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
                     );
 
                     if (result.submit_mode) {
-                        return vscode.window.showInformationMessage("제출되었습니다.");
+                        vscode.window.showInformationMessage("제출되었습니다.");
+                        return;
                     }
 
                     if (result.solved && result.all_pass) {
