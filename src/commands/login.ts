@@ -38,7 +38,7 @@ export async function callback(context: vscode.ExtensionContext) {
     const cookies = await openBrowser({
         "url": `${root}/login`,
         "completedURL": createLoginCompletedPredicate(root),
-        "verbose": true,
+        //"verbose": true,
     });
 
     await context.secrets.store(

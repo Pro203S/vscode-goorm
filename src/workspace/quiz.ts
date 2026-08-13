@@ -544,7 +544,7 @@ class QuizWorkspaceController implements vscode.Disposable {
 
                     const socket = new SocketIO(url, {
                         "cookies": await getCookie(this.context),
-                        "verbose": true
+                        //"verbose": true
                     });
                     setSocket(socket);
 
@@ -588,7 +588,7 @@ class QuizWorkspaceController implements vscode.Disposable {
                         }
 
                         const collab = new SocketIO(`wss://${collabProxy.data.proxyHost}/app/${collabProxy.data.host}/${collabProxy.data.port}`, {
-                            "verbose": true
+                            //"verbose": true
                         });
 
                         setCollabSocket(collab);

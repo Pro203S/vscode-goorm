@@ -15,7 +15,7 @@ export async function callback(context: vscode.ExtensionContext) {
     await openBrowser({
         "url": `${root}/logout`,
         "completedURL": root,
-        "verbose": true,
+        //"verbose": true,
     });
 
     if (getActiveQuiz())

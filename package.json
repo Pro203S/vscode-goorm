@@ -3,6 +3,10 @@
     "displayName": "구름EDU",
     "description": "goormEDU in VSCode",
 	"publisher": "Pro203S",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/Pro203S/vscode-goorm.git"
+    },
     "icon": "extlogo.png",
     "version": "0.0.1",
     "engines": {
