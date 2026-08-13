@@ -40,31 +40,6 @@ export default async function workspace(context: vscode.ExtensionContext) {
 
     vscode.window.showInformationMessage(`현재 ${state.userData.name}으로 구름EDU에 로그인되어있습니다.`);
 
-    const sock = getSocket();
-    if (sock) {
-        sock.close();
-        setSocket(undefined);
-    }
-
-    const io = new SocketIO(url, {
-        "cookies": await getCookie(context)
-    });
-    setSocket(io);
-
-    io.on("error", async (error: Error) => {
-        await vscode.window.showErrorMessage("구름EDU: " + error.message);
-        setSocket(undefined);
-        await vscode.commands.executeCommand("workbench.action.closeFolder");
-    });
-
-    io.on("close", async ({ code, reason }) => {
-        await vscode.window.showErrorMessage("구름EDU: 소켓이 닫혔어요. " + code + " " + Buffer.from(reason).toString("utf-8"));
-        setSocket(undefined);
-        await vscode.commands.executeCommand("workbench.action.closeFolder");
-    });
-
-    await io.connect();
-
     context.subscriptions.push(
         registerGuideAnchors(),
         registerQuizWorkspace(context, folder, state),

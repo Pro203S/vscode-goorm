@@ -1,6 +1,6 @@
 import WebSocket, { RawData } from "ws";
 
-type Listener = (data: any) => void;
+type Listener = (...data: any) => void;
 
 export default class SocketIO {
     private ws!: WebSocket;
@@ -22,9 +22,12 @@ export default class SocketIO {
         this.ws = new WebSocket(
             `${wsUrl}/socket.io/?EIO=4&transport=websocket`,
             {
-                headers: this.opts?.cookies ? {
-                    Cookie: this.opts.cookies
-                } : {}
+                headers: {
+                    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36",
+                    ...this.opts?.cookies ? {
+                        "cookie": this.opts?.cookies
+                    } : {}
+                }
             }
         );
 
@@ -89,8 +92,8 @@ export default class SocketIO {
 
                 // event
                 if (str.startsWith("42")) {
-                    const [event, data] = JSON.parse(str.slice(2));
-                    this.emitLocal(event, data);
+                    const [event, ...data] = JSON.parse(str.slice(2));
+                    this.emitLocal(event, ...data);
                 }
             } catch (err) {
                 const e = err as Error;
@@ -106,8 +109,6 @@ export default class SocketIO {
             const listener = (msg: RawData) => {
                 try {
                     const str = msg.toString();
-                    if (this.opts?.verbose)
-                        console.log("[goormEdu]", "received", str);
 
                     if (str.startsWith("40") && !received40) {
                         received40 = true;
@@ -131,6 +132,15 @@ export default class SocketIO {
         if (!this.ws) throw new Error("not connected");
 
         const payload = `42${JSON.stringify([event, data])}`;
+        if (this.opts?.verbose)
+            console.log("[goormEdu]", "SocketSend", payload);
+        this.ws.send(payload);
+    }
+
+    sendRaw(data: any) {
+        if (!this.ws) throw new Error("not connected");
+
+        const payload = `42${JSON.stringify(data)}`;
         if (this.opts?.verbose)
             console.log("[goormEdu]", "SocketSend", payload);
         this.ws.send(payload);
@@ -190,12 +200,12 @@ export default class SocketIO {
         });
     }
 
-    private emitLocal(event: string, data: any) {
+    private emitLocal(event: string, ...data: any) {
         const list = this.listeners.get(event);
         if (!list) return;
 
         for (const l of list) {
-            l(data);
+            l(...data);
         }
     }
 

@@ -125,6 +125,7 @@ export class QuizRepository {
                 ...project.files[fileIndex],
                 index: fileIndex,
                 uri: document.uri,
+                collabFileName: `${lesson.data.idx}_${metadata.result.quizIndex}_${this.state.userData.id}_${project.files[fileIndex].label}_${fileIndex}`
             }
             : undefined;
 

@@ -29,134 +29,138 @@ export async function getUniqueFolderName(
 export const command = "goormEDU.start";
 
 export async function callback(context: vscode.ExtensionContext) {
-    const state = await getInitialState("/", context);
-    if (!state || !state.userData) {
-        const flag = await vscode.window.showErrorMessage("로그인 후 구름EDU의 문제를 풀 수 있습니다.", "로그인") === "로그인";
-        if (!flag) return;
-        return await vscode.commands.executeCommand("goormEDU.login");
-    }
-
-    const lectures = state.channelLectureList.allLectures;
-    const rawLecture = await vscode.window.showQuickPick(
-        lectures.map(v => ({
-            "label": v.subject,
-            "description": v.description,
-        } satisfies vscode.QuickPickItem)),
-        {
-            "canPickMany": false,
-            "ignoreFocusOut": false,
-            "title": "구름EDU",
-            "placeHolder": "강좌를 선택해주세요.",
-            "matchOnDescription": true
+    try {
+        const state = await getInitialState("/", context);
+        if (!state || !state.userData) {
+            const flag = await vscode.window.showErrorMessage("로그인 후 구름EDU의 문제를 풀 수 있습니다.", "로그인") === "로그인";
+            if (!flag) return;
+            return await vscode.commands.executeCommand("goormEDU.login");
         }
-    );
-    if (!rawLecture) return;
 
-    const lecture = lectures.find(v => v.subject === rawLecture.label && v.description === rawLecture.description);
-    if (!lecture) return vscode.window.showErrorMessage("강좌를 찾지 못했습니다.");
+        const lectures = state.channelLectureList.allLectures;
+        const rawLecture = await vscode.window.showQuickPick(
+            lectures.map(v => ({
+                "label": v.subject,
+                "description": v.description,
+            } satisfies vscode.QuickPickItem)),
+            {
+                "canPickMany": false,
+                "ignoreFocusOut": false,
+                "title": "구름EDU",
+                "placeHolder": "강좌를 선택해주세요.",
+                "matchOnDescription": true
+            }
+        );
+        if (!rawLecture) return;
 
-    const lectureState = await getInitialState<LectureInitialState>(`/learn/lecture/${lecture.sequence}/${lecture.url_slug}`, context);
-    if (!lectureState) return vscode.window.showErrorMessage("강좌 데이터를 가져오지 못했습니다.");
+        const lecture = lectures.find(v => v.subject === rawLecture.label && v.description === rawLecture.description);
+        if (!lecture) return vscode.window.showErrorMessage("강좌를 찾지 못했습니다.");
 
-    const targetPath = await vscode.window.showOpenDialog({
-        "canSelectFiles": false,
-        "canSelectFolders": true,
-        "canSelectMany": false,
-        "title": "문제 풀기에 사용할 폴더 선택"
-    });
-    if (!targetPath?.[0]) return;
+        const lectureState = await getInitialState<LectureInitialState>(`/learn/lecture/${lecture.sequence}/${lecture.url_slug}`, context);
+        if (!lectureState) return vscode.window.showErrorMessage("강좌 데이터를 가져오지 못했습니다.");
 
-    let unique = await getUniqueFolderName(targetPath[0], lecture.url_slug);
-    const uri = vscode.Uri.joinPath(targetPath[0], unique);
-    await vscode.workspace.fs.createDirectory(uri);
-    await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, ".goorm"));
+        const targetPath = await vscode.window.showOpenDialog({
+            "canSelectFiles": false,
+            "canSelectFolders": true,
+            "canSelectMany": false,
+            "title": "문제 풀기에 사용할 폴더 선택"
+        });
+        if (!targetPath?.[0]) return;
 
-    await vscode.window.withProgress(
-        {
-            "title": "작업 환경을 세팅하고 있습니다...",
-            "location": vscode.ProgressLocation.Notification,
-            "cancellable": false
-        },
-        async () => {
-            const data = lectureState.lectureData;
+        let unique = await getUniqueFolderName(targetPath[0], lecture.url_slug);
+        const uri = vscode.Uri.joinPath(targetPath[0], unique);
+        await vscode.workspace.fs.createDirectory(uri);
+        await vscode.workspace.fs.createDirectory(vscode.Uri.joinPath(uri, ".goorm"));
 
-            const fs = vscode.workspace.fs;
-            const join = vscode.Uri.joinPath;
-            const goormPath = vscode.Uri.joinPath(uri, ".goorm");
-            const quizzesPath = join(goormPath, "quizzes");
-            await fs.createDirectory(quizzesPath);
-            
-            const mapping: Mapping[] = [];
+        await vscode.window.withProgress(
+            {
+                "title": "작업 환경을 세팅하고 있습니다...",
+                "location": vscode.ProgressLocation.Notification,
+                "cancellable": false
+            },
+            async () => {
+                const data = lectureState.lectureData;
 
-            for await (const curriculum of data.curriculumData) {
-                const curriculumUri = join(uri, sanitizeFileName(curriculum.name));
-                const map = {
-                    "data": {
-                        "seq": curriculum.sequence,
-                        "idx": curriculum.index
-                    },
-                    "filePath": curriculumUri,
-                    "lessons": []
-                } as Mapping;
+                const fs = vscode.workspace.fs;
+                const join = vscode.Uri.joinPath;
+                const goormPath = vscode.Uri.joinPath(uri, ".goorm");
+                const quizzesPath = join(goormPath, "quizzes");
+                await fs.createDirectory(quizzesPath);
 
-                await fs.createDirectory(curriculumUri);
-                for await (const lesson of curriculum.lessons) {
-                    const lessonUri = join(curriculumUri, sanitizeFileName(lesson.name));
-                    await fs.createDirectory(lessonUri);
+                const mapping: Mapping[] = [];
 
-                    map.lessons.push({
-                        "filePath": lessonUri,
+                for await (const curriculum of data.curriculumData) {
+                    const curriculumUri = join(uri, sanitizeFileName(curriculum.name));
+                    const map = {
                         "data": {
-                            "idx": lesson.index,
-                            "seq": lesson.sequence
-                        }
-                    });
-
-                    const quiz = await getQuiz(lecture.index, lesson.index, state.userData.id, context);
-                    if (!quiz) continue;
-
-                    const quizMetadata = createQuizMetadata(
-                        quiz,
-                        {
-                            "index": lecture.index,
-                            "sequence": lecture.sequence,
-                            "urlSlug": lecture.url_slug,
+                            "seq": curriculum.sequence,
+                            "idx": curriculum.index
                         },
-                        {
-                            "index": lesson.index,
-                            "sequence": lesson.sequence,
-                            "urlSlug": lesson.urlSlug,
-                            "name": lesson.name,
-                        },
-                    );
+                        "filePath": curriculumUri,
+                        "lessons": []
+                    } as Mapping;
 
-                    await fs.writeFile(
-                        getQuizMetadataUri(uri, lesson.index),
-                        new TextEncoder().encode(JSON.stringify(quizMetadata, null, 2)),
-                    );
+                    await fs.createDirectory(curriculumUri);
+                    for await (const lesson of curriculum.lessons) {
+                        const lessonUri = join(curriculumUri, sanitizeFileName(lesson.name));
+                        await fs.createDirectory(lessonUri);
 
-                    const projectKeys = Object.keys(quiz.result.project);
-                    for await (const projectKey of projectKeys) {
-                        const project = quiz.result.project[projectKey];
-                        const files = project.files;
-                        const projectUri = join(lessonUri, projectKey);
-                        await fs.createDirectory(projectUri);
+                        map.lessons.push({
+                            "filePath": lessonUri,
+                            "data": {
+                                "idx": lesson.index,
+                                "seq": lesson.sequence
+                            }
+                        });
 
-                        for await (const file of files) {
-                            await fs.writeFile(join(projectUri, file.filename), new TextEncoder().encode(file.content[0].source));
+                        const quiz = await getQuiz(lecture.index, lesson.index, state.userData.id, context);
+                        if (!quiz) continue;
+
+                        const quizMetadata = createQuizMetadata(
+                            quiz,
+                            {
+                                "index": lecture.index,
+                                "sequence": lecture.sequence,
+                                "urlSlug": lecture.url_slug,
+                            },
+                            {
+                                "index": lesson.index,
+                                "sequence": lesson.sequence,
+                                "urlSlug": lesson.urlSlug,
+                                "name": lesson.name,
+                            },
+                        );
+
+                        await fs.writeFile(
+                            getQuizMetadataUri(uri, lesson.index),
+                            new TextEncoder().encode(JSON.stringify(quizMetadata, null, 2)),
+                        );
+
+                        const projectKeys = Object.keys(quiz.result.project);
+                        for await (const projectKey of projectKeys) {
+                            const project = quiz.result.project[projectKey];
+                            const files = project.files;
+                            const projectUri = join(lessonUri, projectKey);
+                            await fs.createDirectory(projectUri);
+
+                            for await (const file of files) {
+                                await fs.writeFile(join(projectUri, file.filename), new TextEncoder().encode(file.content[0].source));
+                            }
                         }
                     }
+
+                    mapping.push(map);
                 }
 
-                mapping.push(map);
+                await fs.writeFile(
+                    join(goormPath, "mapping.json"),
+                    new TextEncoder().encode(JSON.stringify(mapping.map(v => mappingToJson(v, uri)), null, 2))
+                );
             }
+        );
 
-            await fs.writeFile(
-                join(goormPath, "mapping.json"),
-                new TextEncoder().encode(JSON.stringify(mapping.map(v => mappingToJson(v, uri)), null, 2))
-            );
-        }
-    );
-
-    await vscode.commands.executeCommand("vscode.openFolder", uri, false);
+        await vscode.commands.executeCommand("vscode.openFolder", uri, false);
+    } catch (err) {
+        vscode.window.showErrorMessage("수강신청을 했는지 확인해주세요.");
+    }
 }

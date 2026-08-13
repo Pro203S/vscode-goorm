@@ -12,6 +12,7 @@ export type ActiveQuizProject = StoredQuizProject & {
 export type ActiveQuizFile = StoredQuizProject["files"][number] & {
     index: number;
     uri: vscode.Uri;
+    collabFileName: string;
 };
 
 export type ActiveQuiz = {
