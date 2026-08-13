@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import { openBrowser } from '../browser';
 import { getGoormUrl } from '../lib/validateURL';
+import { SESSION_SECRET_KEY } from '../rest';
+import { getActiveQuiz } from '../workspace/quizContext';
 
 export const command = "goormEDU.logout";
 
@@ -8,15 +10,16 @@ export async function callback(context: vscode.ExtensionContext) {
     const root = await getGoormUrl();
     if (!root) return;
 
-    await context.secrets.delete("session");
+    await context.secrets.delete(SESSION_SECRET_KEY);
 
-    const cookies = await openBrowser({
+    await openBrowser({
         "url": `${root}/logout`,
         "completedURL": root,
         "verbose": true,
     });
 
-    vscode.window.showInformationMessage("로그아웃되었습니다.");
+    if (getActiveQuiz())
+        await vscode.commands.executeCommand("workbench.action.closeFolder");
 
-    console.log(cookies);
+    vscode.window.showInformationMessage("로그아웃되었습니다.");
 }

@@ -2,10 +2,8 @@ import * as vscode from 'vscode';
 import getInitialState from '../initialState';
 import registerGuideAnchors from './guideAnchors';
 import registerQuizWorkspace from './quiz';
-import { getSocket, setSocket } from '../lib/socketContext';
-import SocketIO from '../lib/socketIo';
 import { getGoormUrl } from '../lib/validateURL';
-import { getCookie } from '../rest';
+import { saveWorkspaceFolder } from './workspaceHistory';
 
 export default async function workspace(context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder;
@@ -24,6 +22,16 @@ export default async function workspace(context: vscode.ExtensionContext) {
         await vscode.commands.executeCommand("workbench.action.closeFolder");
         return;
     }
+
+    const lecture = state.channelLectureList.allLectures
+        .filter((item) => {
+            const slug = item.url_slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+            return new RegExp(`^${slug}\\d*$`, "i").test(folder.name);
+        })
+        .sort((left, right) => right.url_slug.length - left.url_slug.length)[0];
+
+    await saveWorkspaceFolder(context, folder, lecture?.subject ?? folder.name);
 
     const url = await getGoormUrl();
     if (!url) {

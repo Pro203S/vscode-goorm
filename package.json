@@ -64,17 +64,17 @@
                 {
                     "command": "goormEDU.runQuiz",
                     "when": "goormEDU.isQuizFile",
-                    "group": "navigation@10"
+                    "group": "navigation@-1003"
                 },
                 {
                     "command": "goormEDU.submitQuiz",
                     "when": "goormEDU.isQuizFile",
-                    "group": "navigation@11"
+                    "group": "navigation@-1002"
                 },
                 {
                     "command": "goormEDU.save",
                     "when": "goormEDU.isQuizFile",
-                    "group": "navigation@12"
+                    "group": "navigation@-1001"
                 }
             ]
         },

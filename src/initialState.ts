@@ -918,7 +918,13 @@ export default async function getInitialState<T = InitialState>(path: string, co
     const root = await getGoormUrl();
     if (!root) return;
 
-    const data = (await axios({ "url": "https://sunrint-hs.goorm.io" + path, context }))?.data;
+    const base = vscode.Uri.parse(root);
+
+    const data = (await axios({ "url": vscode.Uri.joinPath(base, path).toString(), context }))?.data;
     if (!data) return;
-    return g(data) as T;
+    const d = g(data) as any;
+
+    if (!d?.userData) return;
+
+    return d;
 }

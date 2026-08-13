@@ -382,15 +382,14 @@ class QuizWorkspaceController implements vscode.Disposable {
                 const cookie = await getCookie(this.context);
                 const state = await getInitialState<QuizInitialState>(`/learn/lecture/${quiz.metadata.lecture.sequence}/${quiz.metadata.lecture.urlSlug}/lesson/${quiz.lesson.data.seq}/${quiz.metadata.lesson.urlSlug}`, this.context);
                 if (!state?.userData || !cookie) {
-                    const login = await vscode.window.showErrorMessage(
-                        "로그인 후 구름EDU의 문제를 풀 수 있습니다.",
-                        "로그인",
+                    await vscode.window.showErrorMessage(
+                        "구름EDU 오류",
+                        {
+                            "modal": true,
+                            "detail": "구름EDU의 계정 정보를 가져올 수 없습니다.",
+                        }
                     );
-
-                    if (login === "로그인") {
-                        await vscode.commands.executeCommand("goormEDU.login");
-                    }
-
+                    await vscode.commands.executeCommand("workbench.action.closeFolder");
                     return;
                 }
 

@@ -4,6 +4,7 @@ import sanitizeFileName from '../lib/sanitizeFileName';
 import { Mapping, mappingToJson } from '../lib/mapping';
 import getQuiz from '../lib/getQuiz';
 import { createQuizMetadata, getQuizMetadataUri } from '../lib/quizMetadata';
+import { getSavedWorkspaceFolders, WORKSPACE_FOLDERS_KEY } from '../workspace/workspaceHistory';
 
 export async function getUniqueFolderName(
     parentUri: vscode.Uri,
@@ -28,7 +29,7 @@ export async function getUniqueFolderName(
 
 export const command = "goormEDU.start";
 
-export async function callback(context: vscode.ExtensionContext) {
+async function createWorkspace(context: vscode.ExtensionContext) {
     try {
         const state = await getInitialState("/", context);
         if (!state || !state.userData) {
@@ -102,6 +103,9 @@ export async function callback(context: vscode.ExtensionContext) {
 
                     await fs.createDirectory(curriculumUri);
                     for await (const lesson of curriculum.lessons) {
+                        const quiz = await getQuiz(lecture.index, lesson.index, state.userData.id, context);
+                        if (!quiz?.result) continue;
+
                         const lessonUri = join(curriculumUri, sanitizeFileName(lesson.name));
                         await fs.createDirectory(lessonUri);
 
@@ -112,9 +116,6 @@ export async function callback(context: vscode.ExtensionContext) {
                                 "seq": lesson.sequence
                             }
                         });
-
-                        const quiz = await getQuiz(lecture.index, lesson.index, state.userData.id, context);
-                        if (!quiz) continue;
 
                         const quizMetadata = createQuizMetadata(
                             quiz,
@@ -161,6 +162,60 @@ export async function callback(context: vscode.ExtensionContext) {
 
         await vscode.commands.executeCommand("vscode.openFolder", uri, false);
     } catch (err) {
-        vscode.window.showErrorMessage("수강신청을 했는지 확인해주세요.");
+        console.error(err);
+        vscode.window.showErrorMessage((err as any).stack);
     }
+}
+
+export async function callback(context: vscode.ExtensionContext) {
+    const workspaceFolders = getSavedWorkspaceFolders(context);
+    if (workspaceFolders.length <= 0) {
+        return await createWorkspace(context);
+    }
+
+    const folder = await vscode.window.showQuickPick(
+        [
+            ...workspaceFolders.map(v => ({
+                "label": v.lectureName,
+                "description": v.uri.fsPath,
+            } satisfies vscode.QuickPickItem)),
+            {
+                "label": "새 워크스페이스 만들기",
+                "description": "새 워크스페이스를 만듭니다."
+            },
+            {
+                "label": "워크스페이스 기록 삭제",
+                "description": "기록을 삭제합니다."
+            }
+        ],
+        {
+            "canPickMany": false,
+            "ignoreFocusOut": false,
+            "title": "구름EDU",
+            "placeHolder": "워크스페이스 선택",
+            "matchOnDescription": true
+        }
+    );
+    if (!folder) return;
+
+    if (
+        folder.label === "워크스페이스 기록 삭제" &&
+        folder.description === "기록을 삭제합니다."
+    ) {
+        await context.globalState.update(WORKSPACE_FOLDERS_KEY, []);
+        vscode.window.showInformationMessage("기록을 삭제했습니다.");
+        return;
+    }
+
+    if (
+        folder.label === "새 워크스페이스 만들기" &&
+        folder.description === "새 워크스페이스를 만듭니다."
+    ) {
+        return await createWorkspace(context);
+    }
+
+    const v = workspaceFolders.find(v => folder.label === v.lectureName && folder.description === v.uri.fsPath);
+    if (!v) return;
+
+    await vscode.commands.executeCommand("vscode.openFolder", v.uri, false);
 }
