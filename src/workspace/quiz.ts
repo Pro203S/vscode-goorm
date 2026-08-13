@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
+import * as path from "path";
 import getInitialState, { InitialState, QuizInitialState } from "../initialState";
-import { getActiveQuiz, setActiveQuiz } from "./quizContext";
+import { ActiveQuiz, getActiveQuiz, setActiveQuiz } from "./quizContext";
 import { QuizPanel } from "./quizPanel";
 import { QuizRepository } from "./quizRepository";
 import { getCollabSocket, getSocket, setCollabSocket, setSocket } from "../lib/socketContext";
@@ -20,6 +21,39 @@ const NON_EDITOR_URI_SCHEMES = new Set([
 
 function isWorkbenchPanel(editor: vscode.TextEditor): boolean {
     return NON_EDITOR_URI_SCHEMES.has(editor.document.uri.scheme);
+}
+
+function isUriInside(parent: vscode.Uri, child: vscode.Uri): boolean {
+    if (parent.scheme !== child.scheme || parent.authority !== child.authority) {
+        return false;
+    }
+
+    const relative = parent.scheme === "file"
+        ? path.relative(parent.fsPath, child.fsPath)
+        : path.posix.relative(parent.path, child.path);
+
+    return (
+        relative === "" ||
+        (
+            relative !== ".." &&
+            !relative.startsWith(`..${path.sep}`) &&
+            !relative.startsWith("../") &&
+            !path.isAbsolute(relative) &&
+            !path.posix.isAbsolute(relative)
+        )
+    );
+}
+
+function getTabUris(tab: vscode.Tab): vscode.Uri[] {
+    if (tab.input instanceof vscode.TabInputText) {
+        return [tab.input.uri];
+    }
+
+    if (tab.input instanceof vscode.TabInputTextDiff) {
+        return [tab.input.original, tab.input.modified];
+    }
+
+    return [];
 }
 
 const closeWithError = async (message: string) => {
@@ -241,6 +275,7 @@ class QuizWorkspaceController implements vscode.Disposable {
     private readonly panel = new QuizPanel();
     private readonly repository: QuizRepository;
     private updateId = 0;
+    private openQuiz: ActiveQuiz | undefined;
     private collaborationRevision: number | undefined;
     private operationMetadata: Omit<OperationMetadata, "time"> | undefined;
 
@@ -261,6 +296,9 @@ class QuizWorkspaceController implements vscode.Disposable {
             ),
             vscode.workspace.onDidChangeTextDocument(
                 (event) => this.changeDocument(event),
+            ),
+            vscode.window.tabGroups.onDidChangeTabs(
+                (event) => void this.changeTabs(event),
             ),
         );
 
@@ -344,6 +382,68 @@ class QuizWorkspaceController implements vscode.Disposable {
 
     }
 
+    private async changeTabs(event: vscode.TabChangeEvent): Promise<void> {
+        const quiz = this.openQuiz;
+        if (!quiz) return;
+
+        const quizTabClosed = event.closed.some((tab) =>
+            getTabUris(tab).some(
+                (uri) => uri.toString() === quiz.document.uri.toString(),
+            ),
+        );
+        if (!quizTabClosed) return;
+
+        const id = ++this.updateId;
+        this.collaborationRevision = undefined;
+        this.operationMetadata = undefined;
+        this.panel.hide();
+        this.openQuiz = undefined;
+        setActiveQuiz(undefined);
+        this.closeSockets();
+
+        await Promise.all([
+            vscode.commands.executeCommand("setContext", QUIZ_FILE_CONTEXT, false),
+            vscode.commands.executeCommand("setContext", SUBMIT_QUIZ_CONTEXT, false),
+        ]);
+
+        if (id !== this.updateId) return;
+
+        const editor = vscode.window.activeTextEditor;
+        if (
+            editor &&
+            !isWorkbenchPanel(editor) &&
+            editor.document.uri.toString() !== quiz.document.uri.toString()
+        ) {
+            await this.updateActiveEditor(editor);
+        }
+    }
+
+    private async closeQuizTabs(quiz: ActiveQuiz): Promise<void> {
+        const tabs = vscode.window.tabGroups.all
+            .flatMap((group) => [...group.tabs])
+            .filter((tab) => getTabUris(tab).some(
+                (uri) => isUriInside(quiz.lesson.filePath, uri),
+            ));
+
+        if (tabs.length > 0) {
+            await vscode.window.tabGroups.close(tabs, true);
+        }
+    }
+
+    private closeSockets(): void {
+        const collaborationSocket = getCollabSocket();
+        if (collaborationSocket) {
+            collaborationSocket.close();
+            setCollabSocket(undefined);
+        }
+
+        const socket = getSocket();
+        if (socket) {
+            socket.close();
+            setSocket(undefined);
+        }
+    }
+
     private async updateActiveEditor(editor?: vscode.TextEditor): Promise<void> {
         const id = ++this.updateId;
         const quiz = editor
@@ -358,6 +458,16 @@ class QuizWorkspaceController implements vscode.Disposable {
         const nextQuizUri = quiz?.document.uri.toString();
         if (activeQuizUri === nextQuizUri) return;
 
+        const previousQuiz = this.openQuiz;
+        const isDifferentQuiz = Boolean(
+            previousQuiz &&
+            quiz &&
+            (
+                previousQuiz.lesson.index !== quiz.lesson.index ||
+                previousQuiz.metadata.result.quizIndex !== quiz.metadata.result.quizIndex
+            ),
+        );
+
         this.collaborationRevision = undefined;
         this.operationMetadata = undefined;
 
@@ -371,10 +481,17 @@ class QuizWorkspaceController implements vscode.Disposable {
         ]);
         if (id !== this.updateId) return;
 
+        if (isDifferentQuiz) this.panel.hide();
+
+        if (quiz) this.openQuiz = quiz;
         setActiveQuiz(quiz);
         if (!quiz || !editor) return this.panel.hide();
 
         this.panel.show(quiz.metadata);
+
+        if (isDifferentQuiz && previousQuiz) {
+            await this.closeQuizTabs(previousQuiz);
+        }
 
         await vscode.window.withProgress(
             {
@@ -758,7 +875,9 @@ class QuizWorkspaceController implements vscode.Disposable {
         this.collaborationRevision = undefined;
         this.operationMetadata = undefined;
         this.panel.dispose();
+        this.openQuiz = undefined;
         setActiveQuiz(undefined);
+        this.closeSockets();
 
         for (const disposable of this.disposables) {
             disposable.dispose();
