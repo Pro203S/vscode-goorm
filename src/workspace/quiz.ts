@@ -7,8 +7,10 @@ import { getCollabSocket, getSocket, setCollabSocket, setSocket } from "../lib/s
 import { axios, getCookie } from "../rest";
 import { getGoormUrl } from "../lib/validateURL";
 import SocketIO from "../lib/socketIo";
+import { refreshLessonDecorations } from "./lessonDecorations";
 
 const QUIZ_FILE_CONTEXT = "goormEDU.isQuizFile";
+const SUBMIT_QUIZ_CONTEXT = "goormEDU.canSubmitQuiz";
 const NON_EDITOR_URI_SCHEMES = new Set([
     "output",
     "debug",
@@ -359,7 +361,14 @@ class QuizWorkspaceController implements vscode.Disposable {
         this.collaborationRevision = undefined;
         this.operationMetadata = undefined;
 
-        await vscode.commands.executeCommand("setContext", QUIZ_FILE_CONTEXT, Boolean(quiz));
+        await Promise.all([
+            vscode.commands.executeCommand("setContext", QUIZ_FILE_CONTEXT, Boolean(quiz)),
+            vscode.commands.executeCommand(
+                "setContext",
+                SUBMIT_QUIZ_CONTEXT,
+                Boolean(quiz && quiz.metadata.result.quizMode !== "run_mode"),
+            ),
+        ]);
         if (id !== this.updateId) return;
 
         setActiveQuiz(quiz);
@@ -374,364 +383,372 @@ class QuizWorkspaceController implements vscode.Disposable {
                 'cancellable': false
             },
             async () => {
-                // 소켓 연결 전
+                try {
+                    // 소켓 연결 전
 
-                const url = await getGoormUrl();
-                if (!url) return;
+                    const url = await getGoormUrl();
+                    if (!url) return;
 
-                const cookie = await getCookie(this.context);
-                const state = await getInitialState<QuizInitialState>(`/learn/lecture/${quiz.metadata.lecture.sequence}/${quiz.metadata.lecture.urlSlug}/lesson/${quiz.lesson.data.seq}/${quiz.metadata.lesson.urlSlug}`, this.context);
-                if (!state?.userData || !cookie) {
-                    await vscode.window.showErrorMessage(
-                        "구름EDU 오류",
-                        {
-                            "modal": true,
-                            "detail": "구름EDU의 계정 정보를 가져올 수 없습니다.",
-                        }
-                    );
-                    await vscode.commands.executeCommand("workbench.action.closeFolder");
-                    return;
-                }
-
-                this.operationMetadata = {
-                    user: state.userData.id,
-                    name: state.userData.name,
-                    project_path: quiz.project.key,
-                    quiz_index: state.lesson.tutorial_quiz_index,
-                    language: quiz.project.language,
-                    service_type: "edu",
-                    channel_index: state.channel.index,
-                };
-
-                //#region 소켓 연결
-
-                const originalSocket = getSocket();
-                if (originalSocket) {
-                    originalSocket.close();
-                    setSocket(undefined);
-                }
-
-                const socket = new SocketIO(url, {
-                    "cookies": await getCookie(this.context),
-                    "verbose": true
-                });
-                setSocket(socket);
-
-                socket.on("error", async (error: Error) => {
-                    setSocket(undefined);
-                    closeWithError(`${error.message}`);
-                });
-
-                socket.on("close", async ({ code, reason }) => {
-                    setSocket(undefined);
-                    closeWithError(`${code} ${Buffer.from(reason).toString("utf-8")}`);
-                });
-
-                await socket.connect();
-
-                //#endregion
-
-                // 콜라보 소켓 연결
-                socket.on("entrance_to_collaboration", async (ev) => {
-                    //#region 소켓 연결
-                    const data: {
-                        "result": boolean,
-                        "_id": string,
-                        "collaborationRoomName": string
-                    } = ev;
-
-                    const collabProxy = await axios({
-                        "context": this.context,
-                        "url": `${url}/api/ot/available`,
-                        "params": {
-                            "collaborationId": data._id
-                        }
-                    });
-                    if (!collabProxy) return await closeWithError("구름EDU 서버와의 연결에 실패했습니다.");
-
-                    if (getCollabSocket()) {
-                        const c = getCollabSocket();
-                        // 위에서 확인했는데 설마 몇 마이크로초 안에 값이 바뀌겠어
-                        c?.close();
-                        setCollabSocket(undefined);
+                    const cookie = await getCookie(this.context);
+                    const state = await getInitialState<QuizInitialState>(`/learn/lecture/${quiz.metadata.lecture.sequence}/${quiz.metadata.lecture.urlSlug}/lesson/${quiz.lesson.data.seq}/${quiz.metadata.lesson.urlSlug}`, this.context);
+                    if (!state?.userData || !cookie) {
+                        return closeWithError("구름EDU의 계정 정보를 가져올 수 없습니다.");
                     }
 
-                    const collab = new SocketIO(`wss://${collabProxy.data.proxyHost}/app/${collabProxy.data.host}/${collabProxy.data.port}`, {
+                    if ((state as any).errorCode) {
+                        if ((state as any).errorData === "NotStudent") {
+                            return closeWithError(`수강신청이 되어있지 않습니다.`);
+                        }
+                        return closeWithError(`${(state as any).errorCode} 오류가 발생했습니다.`);
+                    }
+
+                    await refreshLessonDecorations(
+                        this.context,
+                        quiz.metadata.lecture.sequence,
+                    );
+
+                    this.operationMetadata = {
+                        user: state.userData.id,
+                        name: state.userData.name,
+                        project_path: quiz.project.key,
+                        quiz_index: quiz.metadata.result.quizIndex,
+                        language: quiz.project.language,
+                        service_type: "edu",
+                        channel_index: state.channel.index,
+                    };
+
+                    //#region 소켓 연결
+
+                    const originalSocket = getSocket();
+                    if (originalSocket) {
+                        originalSocket.close();
+                        setSocket(undefined);
+                    }
+
+                    const socket = new SocketIO(url, {
+                        "cookies": await getCookie(this.context),
                         "verbose": true
                     });
+                    setSocket(socket);
 
-                    setCollabSocket(collab);
-
-                    collab.on("error", async (error: Error) => {
-                        await vscode.window.showErrorMessage("구름EDU: " + error.message);
-                        setCollabSocket(undefined);
+                    socket.on("error", async (error: Error) => {
+                        setSocket(undefined);
+                        closeWithError(`${error.message}`);
                     });
 
-                    collab.on("close", async ({ code, reason }) => {
-                        await vscode.window.showErrorMessage("구름EDU: 소켓이 닫혔어요. " + code + " " + Buffer.from(reason).toString("utf-8"));
-                        setCollabSocket(undefined);
+                    socket.on("close", async ({ code, reason }) => {
+                        setSocket(undefined);
+                        closeWithError(`${code} ${Buffer.from(reason).toString("utf-8")}`);
                     });
 
-                    await collab.connect();
+                    await socket.connect();
 
                     //#endregion
 
-                    // 첫 문서 정보 가져오기
-                    collab.once(`doc.${quiz.file?.collabFileName}`, async (ev: {
-                        str: string;
-                        revision: number;
-                    }) => {
-                        const document = editor.document;
+                    // 콜라보 소켓 연결
+                    socket.on("entrance_to_collaboration", async (ev) => {
+                        //#region 소켓 연결
+                        const data: {
+                            "result": boolean,
+                            "_id": string,
+                            "collaborationRoomName": string
+                        } = ev;
 
-                        this.collaborationRevision = ev.revision;
+                        const collabProxy = await axios({
+                            "context": this.context,
+                            "url": `${url}/api/ot/available`,
+                            "params": {
+                                "collaborationId": data._id
+                            }
+                        });
+                        if (!collabProxy) return await closeWithError("구름EDU 서버와의 연결에 실패했습니다.");
 
-                        const fullRange = new vscode.Range(
-                            document.positionAt(0),
-                            document.positionAt(document.getText().length),
-                        );
-
-                        applyingRemoteOperation = true;
-
-                        try {
-                            await editor.edit((edit) => {
-                                edit.replace(fullRange, ev.str);
-                            });
-                        } finally {
-                            applyingRemoteOperation = false;
-                        }
-                        await editor.document.save();
-                    });
-
-                    //#region selection
-                    const peerDecorations = new Map<
-                        string,
-                        vscode.TextEditorDecorationType
-                    >();
-                    const peerNames = new Map<string, string>();
-                    const peerSelections = new Map<string, vscode.Range[]>();
-
-                    const renderPeerSelection = (clientId: string) => {
-                        const ranges = peerSelections.get(clientId) ?? [];
-                        let decoration = peerDecorations.get(clientId);
-
-                        if (ranges.length === 0 && !decoration) return;
-
-                        if (!decoration) {
-                            decoration = vscode.window.createTextEditorDecorationType(
-                                getClientColor(clientId),
-                            );
-                            peerDecorations.set(clientId, decoration);
+                        if (getCollabSocket()) {
+                            const c = getCollabSocket();
+                            // 위에서 확인했는데 설마 몇 마이크로초 안에 값이 바뀌겠어
+                            c?.close();
+                            setCollabSocket(undefined);
                         }
 
-                        const color = getClientColor(clientId).borderColor;
-                        const name = peerNames.get(clientId);
-                        const decorations = ranges.map((range, index): vscode.DecorationOptions => ({
-                            range,
-                            renderOptions: index === 0 && name
-                                ? {
-                                    after: {
-                                        "contentText": name,
-                                        "backgroundColor": color,
-                                        "color": "#111111",
-                                        "fontWeight": "600",
-                                    },
-                                }
-                                : undefined,
-                        }));
-
-                        editor.setDecorations(decoration, decorations);
-                    };
-
-                    const setPeerName = (clientId: string, name?: string) => {
-                        if (!name || peerNames.get(clientId) === name) return;
-
-                        peerNames.set(clientId, name);
-                        renderPeerSelection(clientId);
-                    };
-
-                    const updatePeerSelection = (
-                        clientId: string,
-                        selection: {
-                            ranges: {
-                                anchor: number;
-                                head: number;
-                            }[];
-                        },
-                    ) => {
-                        const ranges = selection.ranges.map((range) => {
-                            return new vscode.Range(
-                                editor.document.positionAt(range.anchor),
-                                editor.document.positionAt(range.head),
-                            );
+                        const collab = new SocketIO(`wss://${collabProxy.data.proxyHost}/app/${collabProxy.data.host}/${collabProxy.data.port}`, {
+                            "verbose": true
                         });
 
-                        peerSelections.set(clientId, ranges);
-                        renderPeerSelection(clientId);
-                    };
+                        setCollabSocket(collab);
 
-                    collab.on("set_name", (
-                        clientId: string,
-                        name: string,
-                        filepath: string,
-                    ) => {
-                        if (filepath !== quiz.file?.collabFileName) return;
+                        collab.on("error", async (error: Error) => {
+                            await vscode.window.showErrorMessage("구름EDU: " + error.message);
+                            setCollabSocket(undefined);
+                        });
 
-                        setPeerName(clientId, name);
-                    });
+                        collab.on("close", async ({ code, reason }) => {
+                            await vscode.window.showErrorMessage("구름EDU: 소켓이 닫혔어요. " + code + " " + Buffer.from(reason).toString("utf-8"));
+                            setCollabSocket(undefined);
+                        });
 
-                    collab.on("selection", (
-                        clientId: string,
-                        selection: {
-                            ranges: {
-                                anchor: number;
-                                head: number;
-                            }[];
-                        } | null,
-                        filepath: string,
-                    ) => {
-                        if (filepath !== quiz.file?.collabFileName) {
-                            return;
-                        }
+                        await collab.connect();
 
-                        // blur 등으로 selection이 제거된 경우
-                        if (!selection) {
-                            peerSelections.delete(clientId);
-                            renderPeerSelection(clientId);
-                            return;
-                        }
+                        //#endregion
 
-                        updatePeerSelection(clientId, selection);
-                    });
+                        // 첫 문서 정보 가져오기
+                        collab.once(`doc.${quiz.file?.collabFileName}`, async (ev: {
+                            str: string;
+                            revision: number;
+                        }) => {
+                            const document = editor.document;
 
-                    collab.on("operation", async (
-                        clientId: string,
-                        operation: (number | string)[],
-                        selection: {
-                            ranges: {
-                                anchor: number;
-                                head: number;
-                            }[];
-                        } | null,
-                        filepath: string,
-                    ) => {
-                        if (filepath !== quiz.file?.collabFileName) return;
+                            this.collaborationRevision = ev.revision;
 
-                        try {
-                            const success = await applyOperation(editor, operation);
-
-                            if (!success) {
-                                console.error("Failed to apply collaboration operation");
-                            }
-
-                            if (this.collaborationRevision !== undefined) {
-                                this.collaborationRevision += 1;
-                            }
-
-                            if (selection) {
-                                updatePeerSelection(clientId, selection);
-                            }
-                        } catch (error) {
-                            console.error(
-                                "Failed to apply collaboration operation:",
-                                error,
+                            const fullRange = new vscode.Range(
+                                document.positionAt(0),
+                                document.positionAt(document.getText().length),
                             );
-                        }
-                    });
-                    //#endregion
 
-                    //#region join / leave
-                    collab.on("join_room", (ev) => {
-                        vscode.window.showInformationMessage(`${ev.name}님이 입장했습니다.`);
-                    });
-                    collab.on("left_room", (ev) => {
-                        vscode.window.showInformationMessage(`${ev.name}님이 나갔습니다.`);
+                            applyingRemoteOperation = true;
+
+                            try {
+                                await editor.edit((edit) => {
+                                    edit.replace(fullRange, ev.str);
+                                });
+                            } finally {
+                                applyingRemoteOperation = false;
+                            }
+                            await editor.document.save();
+                        });
+
+                        //#region selection
+                        const peerDecorations = new Map<
+                            string,
+                            vscode.TextEditorDecorationType
+                        >();
+                        const peerNames = new Map<string, string>();
+                        const peerSelections = new Map<string, vscode.Range[]>();
+
+                        const renderPeerSelection = (clientId: string) => {
+                            const ranges = peerSelections.get(clientId) ?? [];
+                            let decoration = peerDecorations.get(clientId);
+
+                            if (ranges.length === 0 && !decoration) return;
+
+                            if (!decoration) {
+                                decoration = vscode.window.createTextEditorDecorationType(
+                                    getClientColor(clientId),
+                                );
+                                peerDecorations.set(clientId, decoration);
+                            }
+
+                            const color = getClientColor(clientId).borderColor;
+                            const name = peerNames.get(clientId);
+                            const decorations = ranges.map((range, index): vscode.DecorationOptions => ({
+                                range,
+                                renderOptions: index === 0 && name
+                                    ? {
+                                        after: {
+                                            "contentText": name,
+                                            "backgroundColor": color,
+                                            "color": "#111111",
+                                            "fontWeight": "600",
+                                        },
+                                    }
+                                    : undefined,
+                            }));
+
+                            editor.setDecorations(decoration, decorations);
+                        };
+
+                        const setPeerName = (clientId: string, name?: string) => {
+                            if (!name || peerNames.get(clientId) === name) return;
+
+                            peerNames.set(clientId, name);
+                            renderPeerSelection(clientId);
+                        };
+
+                        const updatePeerSelection = (
+                            clientId: string,
+                            selection: {
+                                ranges: {
+                                    anchor: number;
+                                    head: number;
+                                }[];
+                            },
+                        ) => {
+                            const ranges = selection.ranges.map((range) => {
+                                return new vscode.Range(
+                                    editor.document.positionAt(range.anchor),
+                                    editor.document.positionAt(range.head),
+                                );
+                            });
+
+                            peerSelections.set(clientId, ranges);
+                            renderPeerSelection(clientId);
+                        };
+
+                        collab.on("set_name", (
+                            clientId: string,
+                            name: string,
+                            filepath: string,
+                        ) => {
+                            if (filepath !== quiz.file?.collabFileName) return;
+
+                            setPeerName(clientId, name);
+                        });
+
+                        collab.on("selection", (
+                            clientId: string,
+                            selection: {
+                                ranges: {
+                                    anchor: number;
+                                    head: number;
+                                }[];
+                            } | null,
+                            filepath: string,
+                        ) => {
+                            if (filepath !== quiz.file?.collabFileName) {
+                                return;
+                            }
+
+                            // blur 등으로 selection이 제거된 경우
+                            if (!selection) {
+                                peerSelections.delete(clientId);
+                                renderPeerSelection(clientId);
+                                return;
+                            }
+
+                            updatePeerSelection(clientId, selection);
+                        });
+
+                        collab.on("operation", async (
+                            clientId: string,
+                            operation: (number | string)[],
+                            selection: {
+                                ranges: {
+                                    anchor: number;
+                                    head: number;
+                                }[];
+                            } | null,
+                            filepath: string,
+                        ) => {
+                            if (filepath !== quiz.file?.collabFileName) return;
+
+                            try {
+                                const success = await applyOperation(editor, operation);
+
+                                if (!success) {
+                                    console.error("Failed to apply collaboration operation");
+                                }
+
+                                if (this.collaborationRevision !== undefined) {
+                                    this.collaborationRevision += 1;
+                                }
+
+                                if (selection) {
+                                    updatePeerSelection(clientId, selection);
+                                }
+                            } catch (error) {
+                                console.error(
+                                    "Failed to apply collaboration operation:",
+                                    error,
+                                );
+                            }
+                        });
+                        //#endregion
+
+                        //#region join / leave
+                        collab.on("join_room", (ev) => {
+                            vscode.window.showInformationMessage(`${ev.name}님이 입장했습니다.`);
+                        });
+                        collab.on("left_room", (ev) => {
+                            vscode.window.showInformationMessage(`${ev.name}님이 나갔습니다.`);
+                        });
+
+                        collab.on("client_left", (clientId: string) => {
+                            // selection 정리
+                            const decoration = peerDecorations.get(clientId);
+                            if (decoration) {
+                                editor.setDecorations(decoration, []);
+                                decoration.dispose();
+                            }
+
+                            peerDecorations.delete(clientId);
+                            peerSelections.delete(clientId);
+                            peerNames.delete(clientId);
+                        });
+                        //#endregion
+
+                        // 콜라보 방에 입장
+                        collab.send("join", JSON.stringify({
+                            "channel": "ot",
+                            "service_type": "edu",
+                            "user_id": state.userData.id,
+                            "user_name": state.userData.name,
+                            "filename": quiz.file?.collabFileName,
+                            "value": editor.document.getText(),
+                            "guideAnchorList": [],
+                            "channel_index": state.channel.index,
+                            "examIndex": state.lesson.index,
+                            "quizIndex": state.lesson.tutorial_quiz_index
+                        }));
+
+                        this.disposables.push({
+                            "dispose": () => {
+                                for (const decoration of peerDecorations.values()) {
+                                    decoration.dispose();
+                                }
+                                peerDecorations.clear();
+                                peerSelections.clear();
+                                peerNames.clear();
+
+                                const socket = getCollabSocket();
+                                if (!socket) return;
+                                socket.close();
+                                setCollabSocket(undefined);
+                            }
+                        });
                     });
 
-                    collab.on("client_left", (clientId: string) => {
-                        // selection 정리
-                        const decoration = peerDecorations.get(clientId);
-                        if (decoration) {
-                            editor.setDecorations(decoration, []);
-                            decoration.dispose();
-                        }
-
-                        peerDecorations.delete(clientId);
-                        peerSelections.delete(clientId);
-                        peerNames.delete(clientId);
+                    // 소켓 정리
+                    socket.on("check_existing_socket_disconnect", (data) => {
+                        socket.send("check_existing_socket_disconnect_lesson", data);
                     });
-                    //#endregion
 
-                    // 콜라보 방에 입장
-                    collab.send("join", JSON.stringify({
-                        "channel": "ot",
-                        "service_type": "edu",
+                    // 소켓 연결했을 때 send
+                    socket.send("entrance_to_lesson", {
+                        "user_id": state.userData.id,
+                        "lesson_index": state.lesson.index,
+                        "room_id": state.userData.id,
+                        "room_type": "user",
+                        "lecture_index": state.lecture.index,
+                        "channel_index": state.channel.index
+                    });
+                    socket.send("entrance_to_quiz", {
+                        "lectureIndex": state.lecture.index,
+                        "examIndex": state.lesson.index,
+                        "quizIndex": state.lesson.tutorial_quiz_index,
+                        "userId": state.userData.id,
+                        "isLesson": true
+                    });
+                    socket.once("id_check_done", () => socket.send("entrance_to_collaboration", {
+                        "lecture_index": state.lecture.index,
+                        "lesson_index": state.lesson.index,
+                        "collaboration_option": "personal",
+                        "owner_id": state.userData.id,
                         "user_id": state.userData.id,
                         "user_name": state.userData.name,
-                        "filename": quiz.file?.collabFileName,
-                        "value": editor.document.getText(),
-                        "guideAnchorList": [],
-                        "channel_index": state.channel.index,
-                        "examIndex": state.lesson.index,
-                        "quizIndex": state.lesson.tutorial_quiz_index
+                        "room_id": state.userData.id,
+                        "room_type": "user"
                     }));
 
                     this.disposables.push({
                         "dispose": () => {
-                            for (const decoration of peerDecorations.values()) {
-                                decoration.dispose();
-                            }
-                            peerDecorations.clear();
-                            peerSelections.clear();
-                            peerNames.clear();
-
-                            const socket = getCollabSocket();
+                            const socket = getSocket();
                             if (!socket) return;
                             socket.close();
-                            setCollabSocket(undefined);
+                            setSocket(undefined);
                         }
                     });
-                });
-
-                // 소켓 정리
-                socket.on("check_existing_socket_disconnect", (data) => {
-                    socket.send("check_existing_socket_disconnect_lesson", data);
-                });
-
-                // 소켓 연결했을 때 send
-                socket.send("entrance_to_lesson", {
-                    "user_id": state.userData.id,
-                    "lesson_index": state.lesson.index,
-                    "room_id": state.userData.id,
-                    "room_type": "user",
-                    "lecture_index": state.lecture.index,
-                    "channel_index": state.channel.index
-                });
-                socket.send("entrance_to_quiz", {
-                    "lectureIndex": state.lecture.index,
-                    "examIndex": state.lesson.index,
-                    "quizIndex": state.lesson.tutorial_quiz_index,
-                    "userId": state.userData.id,
-                    "isLesson": true
-                });
-                socket.once("id_check_done", () => socket.send("entrance_to_collaboration", {
-                    "lecture_index": state.lecture.index,
-                    "lesson_index": state.lesson.index,
-                    "collaboration_option": "personal",
-                    "owner_id": state.userData.id,
-                    "user_id": state.userData.id,
-                    "user_name": state.userData.name,
-                    "room_id": state.userData.id,
-                    "room_type": "user"
-                }));
-
-                this.disposables.push({
-                    "dispose": () => {
-                        const socket = getSocket();
-                        if (!socket) return;
-                        socket.close();
-                        setSocket(undefined);
-                    }
-                });
+                } catch (e) {
+                    vscode.window.showErrorMessage(`구름EDU: ${(e as any).stack}`);
+                }
             }
         );
     }
@@ -748,6 +765,7 @@ class QuizWorkspaceController implements vscode.Disposable {
         }
 
         void vscode.commands.executeCommand("setContext", QUIZ_FILE_CONTEXT, false);
+        void vscode.commands.executeCommand("setContext", SUBMIT_QUIZ_CONTEXT, false);
     }
 }
 

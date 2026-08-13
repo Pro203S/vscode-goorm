@@ -4,6 +4,7 @@ import getInitialState from "../initialState";
 import getQuiz, { QuizResult } from "../lib/getQuiz";
 import { axios } from "../rest";
 import { getActiveQuiz } from "../workspace/quizContext";
+import { getGoormUrl } from "../lib/validateURL";
 
 export const command = "goormEDU.save";
 
@@ -155,9 +156,13 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
             throw new Error("현재 문제 파일을 로컬에 저장하지 못했습니다.");
         }
 
+        const url = await getGoormUrl();
+        if (!url) return;
+
         await vscode.window.withProgress(
             {
-                location: vscode.ProgressLocation.Window,
+                location: vscode.ProgressLocation.Notification,
+                "title": "파일 저장 중...",
                 cancellable: false,
             },
             async () => {
@@ -187,7 +192,7 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
                 const response = await axios({
                     context,
                     "method": "POST",
-                    "url": "https://sunrint-hs.goorm.io/api/workspace/save",
+                    "url": url + "/api/workspace/save",
                     "data": {
                         "lectureIndex": metadata.lecture.index,
                         "examIndex": metadata.lesson.index,

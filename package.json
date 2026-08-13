@@ -2,11 +2,14 @@
     "name": "vscode-goorm",
     "displayName": "구름EDU",
     "description": "goormEDU in VSCode",
+	"publisher": "Pro203S",
+    "icon": "extlogo.png",
     "version": "0.0.1",
     "engines": {
         "vscode": "^1.116.0"
     },
     "categories": [
+        "Education",
         "Other"
     ],
     "activationEvents": [
@@ -68,7 +71,7 @@
                 },
                 {
                     "command": "goormEDU.submitQuiz",
-                    "when": "goormEDU.isQuizFile",
+                    "when": "goormEDU.isQuizFile && goormEDU.canSubmitQuiz",
                     "group": "navigation@-1002"
                 },
                 {

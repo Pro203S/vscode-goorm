@@ -12,6 +12,10 @@ export function validateURL(url?: string): url is string {
 	}
 }
 
+function removeTrailingSlash(url: string): string {
+	return url.replace(/\/+$/, "");
+}
+
 export async function getGoormUrl() {
 	const config = vscode.workspace.getConfiguration("goormEDU");
 	let root = config.get<string>("url");
@@ -27,9 +31,9 @@ export async function getGoormUrl() {
 			return;
 		}
 
-		root = newRoot;
-		await config.update("url", newRoot, 1);
+		root = removeTrailingSlash(newRoot);
+		await config.update("url", root, 1);
 	}
 
-	return root;
+	return removeTrailingSlash(root);
 }

@@ -1,5 +1,6 @@
 import { ExtensionContext } from "vscode";
 import { axios } from "../rest";
+import { getGoormUrl } from "./validateURL";
 
 export type QuizResult = {
     result: {
@@ -14,7 +15,7 @@ export type QuizResult = {
         quizUrlSlug: string;
         quizForm: string;
         quizType: string;
-        quizMode: string;
+        quizMode: "exam_mode" | "submit_mode" | "run_mode";
         quizSkeletonType: string;
         project: Record<
             string,
@@ -44,9 +45,12 @@ export type QuizResult = {
 };
 
 export default async function getQuiz(lecIdx: string, lesIdx: string, userId: string, context: ExtensionContext) {
+    const url = await getGoormUrl();
+    if (!url) return;
+
     const a = await axios({
         context,
-        "url": `https://sunrint-hs.goorm.io/api/workspace/lesson`,
+        "url": `${url}/api/workspace/lesson`,
         "params": {
             "lectureIndex": lecIdx,
             "lessonIndex": lesIdx,

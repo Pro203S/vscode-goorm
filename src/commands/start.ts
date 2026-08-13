@@ -5,6 +5,7 @@ import { Mapping, mappingToJson } from '../lib/mapping';
 import getQuiz from '../lib/getQuiz';
 import { createQuizMetadata, getQuizMetadataUri } from '../lib/quizMetadata';
 import { getSavedWorkspaceFolders, WORKSPACE_FOLDERS_KEY } from '../workspace/workspaceHistory';
+import { getGoormUrl } from '../lib/validateURL';
 
 export async function getUniqueFolderName(
     parentUri: vscode.Uri,
@@ -59,6 +60,18 @@ async function createWorkspace(context: vscode.ExtensionContext) {
 
         const lectureState = await getInitialState<LectureInitialState>(`/learn/lecture/${lecture.sequence}/${lecture.url_slug}`, context);
         if (!lectureState) return vscode.window.showErrorMessage("강좌 데이터를 가져오지 못했습니다.");
+
+        if (!lectureState.lectureData.myLecture) {
+            const a = await vscode.window.showErrorMessage("수강신청을 먼저 해주세요.", "구름EDU에서 보기");
+            if (a !== "구름EDU에서 보기") return;
+
+            const url = await getGoormUrl();
+            if (!url) return;
+
+            const base = vscode.Uri.parse(url);
+            vscode.env.openExternal(vscode.Uri.joinPath(base, `/learn/lecture/${lecture.sequence}/${lecture.url_slug}`));
+            return;
+        }
 
         const targetPath = await vscode.window.showOpenDialog({
             "canSelectFiles": false,

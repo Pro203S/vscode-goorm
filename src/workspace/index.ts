@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
 import getInitialState from '../initialState';
+import { jsonToMapping, Mapping } from '../lib/mapping';
 import registerGuideAnchors from './guideAnchors';
+import registerLessonDecorations from './lessonDecorations';
 import registerQuizWorkspace from './quiz';
 import { getGoormUrl } from '../lib/validateURL';
 import { saveWorkspaceFolder } from './workspaceHistory';
@@ -33,6 +35,20 @@ export default async function workspace(context: vscode.ExtensionContext) {
 
     await saveWorkspaceFolder(context, folder, lecture?.subject ?? folder.name);
 
+    let mappings: Mapping[] = [];
+
+    try {
+        const mappingBytes = await vscode.workspace.fs.readFile(
+            vscode.Uri.joinPath(folder.uri, ".goorm", "mapping.json"),
+        );
+        mappings = (JSON.parse(new TextDecoder().decode(mappingBytes)) as unknown[])
+            .map((mapping) =>
+                jsonToMapping(mapping as Parameters<typeof jsonToMapping>[0], folder.uri),
+            );
+    } catch (error) {
+        console.error("[goormEDU] lesson mapping을 읽지 못했습니다.", error);
+    }
+
     const url = await getGoormUrl();
     if (!url) {
         await vscode.window.showErrorMessage(
@@ -50,6 +66,7 @@ export default async function workspace(context: vscode.ExtensionContext) {
 
     context.subscriptions.push(
         registerGuideAnchors(),
+        await registerLessonDecorations(context, mappings, lecture?.sequence),
         registerQuizWorkspace(context, folder, state),
         vscode.workspace.onDidSaveTextDocument(() => vscode.commands.executeCommand("goormEDU.save")),
     );
