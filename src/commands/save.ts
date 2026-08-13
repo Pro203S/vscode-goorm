@@ -161,8 +161,7 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
 
         await vscode.window.withProgress(
             {
-                location: vscode.ProgressLocation.Notification,
-                "title": "파일 저장 중...",
+                location: vscode.ProgressLocation.SourceControl,
                 cancellable: false,
             },
             async () => {
