@@ -5,7 +5,7 @@ VSCode에서 구름EDU의 문제를 풀 수 있는 확장 프로그램입니다.
 
 ## 설치하기
 
-1. [Releases](https://github.com/Pro203S/vscode-goorm/releases)
+1. [Releases](https://github.com/Pro203S/vscode-goorm/releases)에서 VSIX 파일을 다운로드 받습니다.
 2. 왼쪽 활동 바의 확장을 클릭합니다.
 3. 맨 위 점 3개 버튼을 클릭합니다.
 4. `Install from VSIX...`를 클릭합니다.
@@ -41,3 +41,6 @@ VSCode에서 구름EDU의 문제를 풀 수 있는 확장 프로그램입니다.
 
 ## 업데이트 로그
 
+### v1.0.0
+
+- 첫 릴리즈
