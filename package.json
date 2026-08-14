@@ -1,6 +1,6 @@
 {
     "name": "vscode-goorm",
-    "displayName": "구름EDU",
+    "displayName": "vscode-goorm",
     "description": "goormEDU in VSCode",
     "publisher": "Pro203S",
     "repository": {
@@ -64,10 +64,21 @@
                 "command": "goormEDU.submitQuiz",
                 "title": "제출",
                 "icon": "$(cloud-upload)"
+            },
+            {
+                "category": "goormEDU",
+                "command": "goormEDU.openGoorm",
+                "title": "구름EDU에서 열기",
+                "icon": "$(link-external)"
             }
         ],
         "menus": {
             "editor/title": [
+                {
+                    "command": "goormEDU.openGoorm",
+                    "when": "goormEDU.isQuizFile",
+                    "group": "navigation@-1004"
+                },
                 {
                     "command": "goormEDU.runQuiz",
                     "when": "goormEDU.isQuizFile",
