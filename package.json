@@ -2,7 +2,7 @@
     "name": "vscode-goorm",
     "displayName": "구름EDU",
     "description": "goormEDU in VSCode",
-	"publisher": "Pro203S",
+    "publisher": "Pro203S",
     "repository": {
         "type": "git",
         "url": "https://github.com/Pro203S/vscode-goorm.git"
@@ -117,6 +117,7 @@
     },
     "dependencies": {
         "axios": "^1.19.0",
+        "chalk": "4.1.2",
         "cheerio": "^1.2.0",
         "express": "^5.2.1",
         "ws": "^8.21.3"

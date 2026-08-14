@@ -64,8 +64,6 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
 
                     await quiz.document.save();
 
-                    console.log(file, quiz.project);
-
                     socket.send("/submit_quiz/programming", {
                         "id": Date.now(),
                         "filetype": quiz.project.mainFiletype,
@@ -97,7 +95,7 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
                         return;
                     }
 
-                    vscode.window.showErrorMessage("오답입니다.");
+                    vscode.window.showErrorMessage(`오답입니다. ${result.score ? `(${result.score}/100)` : ``}`);
                     return;
                 },
             );
