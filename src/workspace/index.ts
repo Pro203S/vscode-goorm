@@ -6,11 +6,22 @@ import registerLessonDecorations from './lessonDecorations';
 import registerQuizWorkspace from './quiz';
 import { getGoormUrl } from '../lib/validateURL';
 import { saveWorkspaceFolder } from './workspaceHistory';
+import axios from 'axios';
 
 export default async function workspace(context: vscode.ExtensionContext) {
     const folder = vscode.workspace.workspaceFolders?.[0] as vscode.WorkspaceFolder;
     const directory = await vscode.workspace.fs.readDirectory(folder.uri);
     if (!directory.find(v => v[0] === ".goorm" && v[1] === 2)) return;
+
+    // 업데이트 체크
+    const version = `v${context.extension.packageJSON.version}`;
+	const github = await axios.get("https://api.github.com/repos/Pro203S/vscode-goorm/releases");
+	if (github.status !== 200) return;
+
+	if (github.data[0]?.tag_name !== version) {
+		const a = await vscode.window.showInformationMessage("vscode-goorm의 새로운 버전이 나왔습니다.\n업데이트를 진행해주세요.", "업데이트");
+		if (a === "업데이트") vscode.env.openExternal(vscode.Uri.parse("https://github.com/Pro203S/vscode-goorm"));
+	}
 
     const state = await getInitialState("/", context);
     if (!state?.userData) {

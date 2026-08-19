@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as fs from 'fs';
 import * as path from 'path';
 import workspace from "./workspace";
+import axios from "axios";
 
 export async function activate(context: vscode.ExtensionContext) {
 	// 명령어 추가
@@ -60,6 +61,4 @@ export async function activate(context: vscode.ExtensionContext) {
 	if (folder) {
 		void workspace(context);
 	}
-
-	
 }
