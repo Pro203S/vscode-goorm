@@ -6,6 +6,7 @@ import { getGoormUrl } from "../lib/validateURL";
 import { getSocket } from "../lib/socketContext";
 import DebugSocket from "../lib/debugSocket";
 import DebugTerminal, { terminalChalk } from "../lib/debugTerminal";
+import { refreshLessonDecorations } from "../workspace/lessonDecorations";
 
 export const command = "goormEDU.runQuiz";
 
@@ -48,6 +49,36 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
 
                 const root = await getGoormUrl();
                 if (!root) return;
+
+                if (quiz.metadata.result.quizMode === "run_mode") {
+                    await axios({
+                        context,
+                        "url": `${root}/api/log/tutorial/run`,
+                        "method": "POST",
+                        "params": {
+                            "tag": "run",
+                            "lectureIndex": state.lecture.index,
+                            "lessonIndex": state.lesson.index,
+                            "quizIndex": state.lesson.tutorial_quiz_index,
+                            "lectureType": state.lecture.type.toString(),
+                            "form": state.lesson.quiz_form,
+                            "lang": quiz.project.language
+                        }
+                    });
+
+                    await axios({
+                        context,
+                        "url": `${root}/api/userLesson/condition`,
+                        "method": "PUT",
+                        "data": {
+                            "condition": "resolveQuiz",
+                            "conditionState": 1,
+                            "lessonIndex": state.lesson.index
+                        }
+                    });
+
+                    await refreshLessonDecorations(context, quiz.lecture.sequence);
+                }
 
                 socket.send("run_in_collaboration", {
                     "type": "term",
@@ -197,8 +228,10 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
                     debugSocket.on("close", () => {
                         terminalProvider.write(
                             "\r\n" +
-                            terminalChalk.white.bold("프로세스가 종료되었습니다.") +
-                            "\r\n",
+                            terminalChalk.gray.bold("프로세스가 종료되었습니다.") +
+                            " " +
+                            terminalChalk.gray("Return 키를 눌러 터미널을 종료하세요.") +
+                            "\r\n"
                         );
                         containerStopped = true;
 
