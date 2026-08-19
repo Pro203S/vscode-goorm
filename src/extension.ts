@@ -43,7 +43,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 
 	// 상태바 아이콘
-	const statusbar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+	const statusbar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 10000);
 
 	statusbar.name = "구름EDU";
 	statusbar.command = "goormEDU.start";

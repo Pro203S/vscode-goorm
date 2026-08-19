@@ -101,6 +101,11 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
                         }
                     });
 
+                    if (result.quizState === 3) {
+                        vscode.window.showErrorMessage("컴파일에 실패했습니다. (" + result.err_msg + ")");
+                        return;
+                    }
+
                     await refreshLessonDecorations(
                         context,
                         quiz.metadata.lecture.sequence,

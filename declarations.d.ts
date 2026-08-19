@@ -8,7 +8,8 @@ declare global {
         "isStateUpdated": boolean,
         // 1 = SUCCESS, 3 = FAILURE
         "quizState": 0 | 1 | 2 | 3 | 4,
-        "score"?: number
+        "score"?: number,
+        "err_msg"?: string
     }
 
     type ContainerCompleteResponse = {
