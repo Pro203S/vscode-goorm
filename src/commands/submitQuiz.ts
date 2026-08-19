@@ -69,7 +69,7 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
 
                     await quiz.document.save();
 
-                    socket.send("/submit_quiz/programming", {
+                    socket.send("/submit_quiz/" + quiz.metadata.result.quizForm, {
                         "id": Date.now(),
                         "filetype": quiz.project.mainFiletype,
                         "lang": quiz.project.language,
@@ -84,7 +84,7 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
                         ]
                     });
 
-                    const result = await socket.waitUntil<SubmitQuizResult>("/submit_quiz/programming");
+                    const result = await socket.waitUntil<SubmitQuizResult>("/submit_quiz/" + quiz.metadata.result.quizForm);
 
                     await axios({
                         context,
