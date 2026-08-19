@@ -41,10 +41,5 @@ VSCode에서 구름EDU의 문제를 풀 수 있는 확장 프로그램입니다.
 
 ## 업데이트 로그
 
-### v1.1.0
+[Releases](https://github.com/Pro203S/vscode-goorm/releases)에서 확인
 
-- 구름EDU에서 열기
-
-### v1.0.0
-
-- 첫 릴리즈
