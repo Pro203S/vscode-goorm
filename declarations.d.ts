@@ -6,7 +6,8 @@ declare global {
         "all_pass"?: boolean,
         "submit_mode"?: boolean,
         "isStateUpdated": boolean,
-        "quizState": 1,
+        // 1 = SUCCESS, 3 = FAILURE
+        "quizState": 0 | 1 | 2 | 3 | 4,
         "score"?: number
     }
 
