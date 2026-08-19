@@ -28,6 +28,15 @@ export async function getUniqueFolderName(
     }
 }
 
+async function checkFileExists(uri: vscode.Uri): Promise<boolean> {
+    try {
+        await vscode.workspace.fs.stat(uri);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 export const command = "goormEDU.start";
 
 async function createWorkspace(context: vscode.ExtensionContext) {
@@ -181,9 +190,16 @@ async function createWorkspace(context: vscode.ExtensionContext) {
 }
 
 export async function callback(context: vscode.ExtensionContext) {
-    const workspaceFolders = getSavedWorkspaceFolders(context);
+    let workspaceFolders = getSavedWorkspaceFolders(context);
     if (workspaceFolders.length <= 0) {
         return await createWorkspace(context);
+    }
+
+    for await (const folder of workspaceFolders) {
+        if (await checkFileExists(folder.uri)) continue;
+
+        await context.globalState.update(WORKSPACE_FOLDERS_KEY, workspaceFolders.filter(v => v.uri.fsPath !== folder.uri.fsPath));
+        workspaceFolders = getSavedWorkspaceFolders(context);
     }
 
     const folder = await vscode.window.showQuickPick(
