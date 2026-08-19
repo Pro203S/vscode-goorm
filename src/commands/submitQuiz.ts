@@ -3,6 +3,8 @@ import { getActiveQuiz } from "../workspace/quizContext";
 import { getSocket } from "../lib/socketContext";
 import getInitialState, { QuizInitialState } from "../initialState";
 import { refreshLessonDecorations } from "../workspace/lessonDecorations";
+import { axios } from "../rest";
+import { getGoormUrl } from "../lib/validateURL";
 
 export const command = "goormEDU.submitQuiz";
 let isSubmitting = false;
@@ -14,6 +16,9 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
     }
 
     try {
+        const root = await getGoormUrl();
+        if (!root) return;
+
         const quiz = getActiveQuiz();
         if (!quiz) {
             vscode.window.showErrorMessage("구름EDU 워크스페이스에서만 사용할 수 있습니다.");
@@ -80,6 +85,22 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
                     });
 
                     const result = await socket.waitUntil<SubmitQuizResult>("/submit_quiz/programming");
+
+                    await axios({
+                        context,
+                        "url": `${root}/api/log/tutorial/submit`,
+                        "method": "POST",
+                        "params": {
+                            "tag": "submit",
+                            "lectureIndex": state.lecture.index,
+                            "lessonIndex": state.lesson.index,
+                            "quizIndex": state.lesson.tutorial_quiz_index,
+                            "lectureType": state.lecture.type.toString(),
+                            "form": state.lesson.quiz_form,
+                            "lang": quiz.project.language
+                        }
+                    });
+
                     await refreshLessonDecorations(
                         context,
                         quiz.metadata.lecture.sequence,

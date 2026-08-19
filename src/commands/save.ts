@@ -161,8 +161,9 @@ export async function callback(context: vscode.ExtensionContext): Promise<void> 
 
         await vscode.window.withProgress(
             {
-                location: vscode.ProgressLocation.SourceControl,
+                location: vscode.ProgressLocation.Notification,
                 cancellable: false,
+                "title": "구름EDU에 저장 중..."
             },
             async () => {
                 const { metadata, lesson, document } = activeQuiz;
