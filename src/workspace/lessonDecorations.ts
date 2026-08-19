@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import getLectureLearn, { APILearn } from "../lib/getLectureLearn";
+import getCurriculum, { APICurriculum } from "./getCurriculum";
 import { Mapping } from "../lib/mapping";
 
 function isDirectChild(parent: vscode.Uri, child: vscode.Uri): boolean {
@@ -66,13 +66,13 @@ class LessonDecorationController implements vscode.FileDecorationProvider, vscod
         return undefined;
     }
 
-    update(lecture: APILearn): void {
+    update(curriculums: APICurriculum): void {
         const completedUris = new Set<string>();
         const completedLessonUris: vscode.Uri[] = [];
         const incorrectUris = new Set<string>();
         const incorrectLessonUris: vscode.Uri[] = [];
 
-        for (const curriculum of lecture.curriculumData) {
+        for (const curriculum of curriculums) {
             const curriculumUri = this.curriculumUris.get(curriculum.index);
             if (curriculumUri && curriculum.allLessons === curriculum.completedLessons) {
                 completedUris.add(curriculumUri.toString());
@@ -113,8 +113,8 @@ export async function refreshLessonDecorations(
     context: vscode.ExtensionContext,
     lectureSequence: number,
 ): Promise<void> {
-    const lecture = await getLectureLearn(lectureSequence, context);
-    if (lecture) activeController?.update(lecture);
+    const curriculums = await getCurriculum(lectureSequence, context);
+    if (curriculums) activeController?.update(curriculums);
 }
 
 export default async function registerLessonDecorations(
